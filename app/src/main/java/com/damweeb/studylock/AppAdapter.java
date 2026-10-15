@@ -10,6 +10,8 @@ import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -17,17 +19,18 @@ import java.util.Set;
 
 public class AppAdapter extends ArrayAdapter<String> {
     private final Set<String> pending;        // apps flagged with pendingNote
-    private final String pendingNote;
-    private final Map<String, Long> seconds;  // null = don't show timers
-    private final Set<String> noTimer;        // apps that aren't being measured yet
+    private final String pendingNote;// apps that aren't being measured yet
+
+    private final Map<String, String> subtitles;   // text under the name, per app
+    private final Map<String, Integer> progress;   // 0..1000 bar value, per app
 
     public AppAdapter(Context c, List<String> pkgs, Set<String> pending, String pendingNote,
-                      Map<String, Long> seconds, Set<String> noTimer) {
+                      Map<String, String> subtitles, Map<String, Integer> progress) {
         super(c, 0, pkgs);
         this.pending = pending;
         this.pendingNote = pendingNote;
-        this.seconds = seconds;
-        this.noTimer = noTimer;
+        this.subtitles = subtitles;
+        this.progress = progress;
     }
 
     @Override
@@ -40,6 +43,7 @@ public class AppAdapter extends ArrayAdapter<String> {
         TextView name = convertView.findViewById(R.id.appName);
         TextView time = convertView.findViewById(R.id.appTime);
         ImageView icon = convertView.findViewById(R.id.appIcon);
+        LinearProgressIndicator bar = convertView.findViewById(R.id.appProgress);
 
         PackageManager pm = getContext().getPackageManager();
         String label;
@@ -53,11 +57,20 @@ public class AppAdapter extends ArrayAdapter<String> {
         }
         name.setText(pending.contains(pkg) ? label + pendingNote : label);
 
-        if (seconds != null && !noTimer.contains(pkg)) {
-            time.setText(formatDuration(seconds.getOrDefault(pkg, 0L)));
+        String sub = subtitles.get(pkg);
+        if (sub != null) {
+            time.setText(sub);
             time.setVisibility(View.VISIBLE);
         } else {
             time.setVisibility(View.GONE);
+        }
+
+        Integer value = progress.get(pkg);
+        if (value != null) {
+            bar.setProgressCompat(value, false);
+            bar.setVisibility(View.VISIBLE);
+        } else {
+            bar.setVisibility(View.GONE);
         }
         return convertView;
     }

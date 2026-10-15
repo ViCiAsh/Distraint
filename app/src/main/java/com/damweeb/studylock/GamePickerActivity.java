@@ -16,6 +16,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,6 +32,7 @@ public class GamePickerActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle b) {
+        AppCompatDelegate.setDefaultNightMode(new StudyState(this).themeMode());
         super.onCreate(b);
         state = new StudyState(this);
         studyMode = getIntent().getBooleanExtra("study", false);

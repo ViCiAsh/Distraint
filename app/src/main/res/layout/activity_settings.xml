@@ -1,135 +1,286 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fitsSystemWindows="true">
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
 
-    <LinearLayout
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp">
+        android:layout_height="?attr/actionBarSize"
+        app:navigationIcon="@drawable/ic_arrow_back"
+        app:title="Settings" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Settings"
-            android:textSize="24sp"
-            android:textStyle="bold" />
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="Theme" />
-
-        <RadioGroup
-            android:id="@+id/themeGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <RadioButton android:id="@+id/themeSystem"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Follow system" />
-            <RadioButton android:id="@+id/themeLight"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Light" />
-            <RadioButton android:id="@+id/themeDark"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Dark" />
-        </RadioGroup>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="How study apps count" />
-
-        <RadioGroup
-            android:id="@+id/combineGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <RadioButton android:id="@+id/combineTotal"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Combined: time adds up across all study apps" />
-            <RadioButton android:id="@+id/combineEach"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Individual: every study app needs the full time" />
-        </RadioGroup>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="How unlock time is counted" />
-
-        <RadioGroup
-            android:id="@+id/limitGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <RadioButton android:id="@+id/limitShared"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Shared: one timer for all locked apps" />
-            <RadioButton android:id="@+id/limitEach"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Individual: each locked app gets its own time, counted only while you're in it" />
-        </RadioGroup>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="Required study time (minutes)" />
-
-        <EditText
-            android:id="@+id/requiredEdit"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:importantForAutofill="no"
-            android:inputType="number"
-            android:maxLength="3" />
+            android:orientation="vertical"
+            android:padding="16dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Unlock duration (minutes, 0 = until the next reset)" />
+            <!-- APPEARANCE -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/SettingsCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp">
 
-        <EditText
-            android:id="@+id/unlockEdit"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:importantForAutofill="no"
-            android:inputType="number"
-            android:maxLength="4" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Daily reset time (hour, 0 to 23)" />
+                    <TextView
+                        style="@style/SettingsSection"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="APPEARANCE" />
 
-        <EditText
-            android:id="@+id/resetEdit"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:importantForAutofill="no"
-            android:inputType="number"
-            android:maxLength="2" />
+                    <com.google.android.material.button.MaterialButtonToggleGroup
+                        android:id="@+id/themeGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        app:selectionRequired="true"
+                        app:singleSelection="true">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="Study, unlock and reset changes apply at the next reset. Theme applies immediately." />
-    </LinearLayout>
-</ScrollView>
+                        <Button
+                            android:id="@+id/themeSystem"
+                            style="?attr/materialButtonOutlinedStyle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="System" />
+
+                        <Button
+                            android:id="@+id/themeLight"
+                            style="?attr/materialButtonOutlinedStyle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Light" />
+
+                        <Button
+                            android:id="@+id/themeDark"
+                            style="?attr/materialButtonOutlinedStyle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Dark" />
+                    </com.google.android.material.button.MaterialButtonToggleGroup>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- STUDY RULES -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/SettingsCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        style="@style/SettingsSection"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="STUDY RULES" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:hint="Required study time"
+                        app:helperText="Needed each day before apps unlock"
+                        app:suffixText="min">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/requiredEdit"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:importantForAutofill="no"
+                            android:inputType="number"
+                            android:maxLength="3" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:text="How study apps count" />
+
+                    <com.google.android.material.button.MaterialButtonToggleGroup
+                        android:id="@+id/combineGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        app:selectionRequired="true"
+                        app:singleSelection="true">
+
+                        <Button
+                            android:id="@+id/combineTotal"
+                            style="?attr/materialButtonOutlinedStyle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Combined" />
+
+                        <Button
+                            android:id="@+id/combineEach"
+                            style="?attr/materialButtonOutlinedStyle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Individual" />
+                    </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:alpha="0.7"
+                        android:text="Combined adds time across study apps. Individual needs the full time in each one."
+                        android:textAppearance="?attr/textAppearanceBodySmall" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- UNLOCK -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/SettingsCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        style="@style/SettingsSection"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="UNLOCK" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:hint="Unlock length"
+                        app:helperText="0 keeps apps open until the next reset"
+                        app:suffixText="min">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/unlockEdit"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:importantForAutofill="no"
+                            android:inputType="number"
+                            android:maxLength="4" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:text="How unlock time is counted" />
+
+                    <com.google.android.material.button.MaterialButtonToggleGroup
+                        android:id="@+id/limitGroup"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        app:selectionRequired="true"
+                        app:singleSelection="true">
+
+                        <Button
+                            android:id="@+id/limitShared"
+                            style="?attr/materialButtonOutlinedStyle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Shared" />
+
+                        <Button
+                            android:id="@+id/limitEach"
+                            style="?attr/materialButtonOutlinedStyle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Individual" />
+                    </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:alpha="0.7"
+                        android:text="Shared uses one timer for every locked app. Individual gives each locked app its own time."
+                        android:textAppearance="?attr/textAppearanceBodySmall" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- DAILY RESET -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/SettingsCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        style="@style/SettingsSection"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="DAILY RESET" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:hint="Reset hour"
+                        app:helperText="0 to 23, for example 4 means 4 AM"
+                        app:suffixText=":00">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/resetEdit"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:importantForAutofill="no"
+                            android:inputType="number"
+                            android:maxLength="2" />
+                    </com.google.android.material.textfield.TextInputLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                android:id="@+id/queuedNote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:alpha="0.7"
+                android:padding="8dp"
+                android:text="Study, unlock and reset changes apply at the next reset. Theme applies immediately."
+                android:textAppearance="?attr/textAppearanceBodySmall" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

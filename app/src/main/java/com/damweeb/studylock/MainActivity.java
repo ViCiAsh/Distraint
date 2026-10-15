@@ -16,6 +16,7 @@ import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.text.InputType;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -28,10 +29,16 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatDelegate;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,10 +50,14 @@ public class MainActivity extends AppCompatActivity {
     private StudyState state;
     private TextView timerText, statusText;
     private Button toggleButton, unlockButton;
-
+    private CircularProgressIndicator ring;
+    private TextView goalText;
+    private boolean animateRing;
+    private boolean lastMet;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean studying;
     private long lastTick;
+    private TextView lockedCount, studyCount;
 
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -64,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle b) {
+        AppCompatDelegate.setDefaultNightMode(new StudyState(this).themeMode());
         super.onCreate(b);
         setContentView(R.layout.activity_main);
         state = new StudyState(this);
@@ -72,8 +84,16 @@ public class MainActivity extends AppCompatActivity {
         toggleButton = findViewById(R.id.toggleButton);
         unlockButton = findViewById(R.id.unlockButton);
 
-        toggleButton.setOnClickListener(v -> { if (studying) stopStudying(); else startStudying(); });
-        unlockButton.setOnClickListener(v -> { state.unlock(); refresh(); });
+        toggleButton.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+            if (studying) stopStudying(); else startStudying();
+        });
+        unlockButton.setOnClickListener(v -> {
+            v.performHapticFeedback(Build.VERSION.SDK_INT >= 30
+                    ? HapticFeedbackConstants.CONFIRM : HapticFeedbackConstants.VIRTUAL_KEY);
+            state.unlock();
+            refresh();
+        });
         findViewById(R.id.accessButton).setOnClickListener(v ->
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         findViewById(R.id.addButton).setOnClickListener(v -> {
@@ -97,6 +117,10 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.warningBanner).setOnClickListener(v ->
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
 
+        ring = findViewById(R.id.ring);
+        goalText = findViewById(R.id.goalText);
+        lockedCount = findViewById(R.id.lockedCount);
+        studyCount = findViewById(R.id.studyCount);
         lockedList = findViewById(R.id.lockedList);
         studyAppList = findViewById(R.id.studyList);
         lockedList.setEmptyView(findViewById(R.id.lockedEmpty));
@@ -123,12 +147,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        ThemeGuard.enforce(this, new StudyState(this).themeMode());
         state.rollover();
         loadLists();
         runOnboarding();
         updatePermissionButtons();
         updateBlockerWarning();
         handler.postDelayed(this::updateBlockerWarning, 2000);
+        animateRing = true;
         refresh();
     }
 
@@ -156,20 +182,58 @@ public class MainActivity extends AppCompatActivity {
     private void loadLists() {
         Map<String, Long> usage = state.appSeconds();
 
+        // ---- locked apps ----
         List<String> locked = new ArrayList<>(state.blocked());
         Collections.sort(locked);
-        lockedList.setAdapter(new AppAdapter(this, locked,
-                state.pendingRemovals(), " · unlocks at next reset",
-                usage, new HashSet<>()));
+        Map<String, String> lockedSub = new HashMap<>();
+        Map<String, Integer> lockedBar = new HashMap<>();
 
+        long windowLeftSec = Math.max(0, (state.unlockedUntil() - System.currentTimeMillis()) / 1000);
+        long budgetSec = state.timedMin() * 60L;
+        for (String pkg : locked) {
+            long used = usage.getOrDefault(pkg, 0L);
+            if (!state.isUnlocked()) {
+                lockedSub.put(pkg, "Locked · used " + clock(used));
+            } else if (state.perAppActive()) {
+                long left = Math.max(0, state.msLeftFor(pkg) / 1000);
+                lockedSub.put(pkg, clock(left) + " left");
+                lockedBar.put(pkg, (int) (1000 * left / Math.max(1, budgetSec)));
+            } else if (state.mode() == StudyState.MODE_TIMED) {
+                lockedSub.put(pkg, clock(windowLeftSec) + " left");
+                lockedBar.put(pkg, (int) (1000 * windowLeftSec / Math.max(1, budgetSec)));
+            } else {
+                lockedSub.put(pkg, "Unlocked · used " + clock(used));
+            }
+        }
+        lockedList.setAdapter(new AppAdapter(this, locked, state.pendingRemovals(),
+                " · unlocks at next reset", lockedSub, lockedBar));
+        lockedCount.setText(String.valueOf(locked.size()));
+
+        // ---- study apps ----
         Set<String> pendingAdds = state.pendingStudyAdds();
         Set<String> studyPkgs = state.studyApps();
         studyPkgs.addAll(pendingAdds);
         List<String> study = new ArrayList<>(studyPkgs);
         Collections.sort(study);
-        studyAppList.setAdapter(new AppAdapter(this, study,
-                pendingAdds, " · from next reset",
-                usage, pendingAdds));
+        Map<String, String> studySub = new HashMap<>();
+        Map<String, Integer> studyBar = new HashMap<>();
+
+        long cap = state.requiredMin() * 60L;
+        boolean each = state.individualActive();
+        for (String pkg : study) {
+            if (pendingAdds.contains(pkg)) continue;          // not measured yet
+            long s = usage.getOrDefault(pkg, 0L);
+            if (each) {
+                long shown = Math.min(s, cap);
+                studySub.put(pkg, clock(shown) + " / " + clock(cap));
+                studyBar.put(pkg, (int) (1000 * shown / Math.max(1, cap)));
+            } else {
+                studySub.put(pkg, clock(s));
+            }
+        }
+        studyAppList.setAdapter(new AppAdapter(this, study, pendingAdds,
+                " · from next reset", studySub, studyBar));
+        studyCount.setText(String.valueOf(study.size()));
     }
 
     private boolean isAdminActive() {
@@ -271,7 +335,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void askNotifications() {
         asking = true;
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
                 .setTitle("Notifications")
                 .setMessage("StudyLock shows a countdown in your notifications when your unlock time is about to run out.")
                 .setCancelable(false)
@@ -294,7 +358,7 @@ public class MainActivity extends AppCompatActivity {
         };
         final int[] picked = {0};
 
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
                 .setTitle("How should unlock time count?")
                 .setSingleChoiceItems(options, 0, (d, which) -> picked[0] = which)
                 .setCancelable(false)
@@ -337,7 +401,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void askFor(String title, String message, Intent intent) {
         asking = true;
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
                 .setTitle(title)
                 .setMessage(message)
                 .setCancelable(false)
@@ -361,6 +425,9 @@ public class MainActivity extends AppCompatActivity {
                 hasBatteryExemption() ? View.GONE : View.VISIBLE);
         findViewById(R.id.adminButton).setVisibility(
                 isAdminActive() ? View.GONE : View.VISIBLE);
+        boolean anyMissing = !state.hasUsageAccess() || !isBlockerEnabled()
+                || !hasBatteryExemption() || !isAdminActive();
+        findViewById(R.id.setupCard).setVisibility(anyMissing ? View.VISIBLE : View.GONE);
     }
 
     private boolean isBlockerEnabled() {
@@ -373,20 +440,16 @@ public class MainActivity extends AppCompatActivity {
                            int min, int max, IntConsumer onChosen) {
         asking = true;
 
-        EditText input = new EditText(this);
-        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        View content = getLayoutInflater().inflate(R.layout.dialog_number, null);
+        TextInputEditText input = content.findViewById(R.id.numberInput);
         input.setText(String.valueOf(initial));
-        input.setSelectAllOnFocus(true);
+        ((TextInputLayout) content.findViewById(R.id.numberLayout))
+                .setHelperText("From " + min + " to " + max);
 
-        FrameLayout box = new FrameLayout(this);
-        int pad = (int) (24 * getResources().getDisplayMetrics().density);
-        box.setPadding(pad, 0, pad, 0);
-        box.addView(input);
-
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
                 .setTitle(title)
                 .setMessage(message)
-                .setView(box)
+                .setView(content)
                 .setCancelable(false)
                 .setPositiveButton("Confirm", (d, w) -> {
                     int v = initial;
@@ -401,10 +464,18 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
+    private static String clock(long s) {
+        return String.format(Locale.US, "%02d:%02d", s / 60, s % 60);
+    }
+
     private void refresh() {
         state.rollover();
-        long s = state.totalStudiedSec();
-        timerText.setText(String.format(Locale.US, "%02d:%02d", s / 60, s % 60));
+        long total = state.totalStudiedSec();
+        long goal = Math.max(1, state.goalSec());
+        timerText.setText(clock(total));
+        goalText.setText("of " + clock(goal));
+        ring.setProgressCompat((int) (1000 * Math.min(total, goal) / goal), animateRing);
+        animateRing = false;               // only the first draw after returning animates
 
         String status;
         if (state.isUnlocked()) status = "Apps are unlocked.";
@@ -423,6 +494,13 @@ public class MainActivity extends AppCompatActivity {
         }
         statusText.setText(status);
         unlockButton.setEnabled(state.canUnlock());
+        unlockButton.setText(state.isUnlocked() ? "Unlocked" : "Unlock");
+        boolean met = state.requirementMet();
+        if (met && !lastMet && studying) {
+            timerText.performHapticFeedback(Build.VERSION.SDK_INT >= 30
+                    ? HapticFeedbackConstants.CONFIRM : HapticFeedbackConstants.LONG_PRESS);
+        }
+        lastMet = met;
     }
     private void updateBlockerWarning() {
         TextView banner = findViewById(R.id.warningBanner);

@@ -42,13 +42,13 @@
             android:id="@+id/warningBanner"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#C62828"
+            android:background="@color/danger"
             android:gravity="center"
             android:padding="12dp"
             android:textColor="#FFFFFF"
             android:textStyle="bold"
             android:visibility="gone" />
-        <!-- TOP HALF: timer, status, buttons -->
+        <!-- TOP HALF: progress ring, buttons, setup card -->
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -62,12 +62,44 @@
                 android:gravity="center"
                 android:padding="16dp">
 
-                <TextView
-                    android:id="@+id/timerText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="48sp"
-                    android:text="00:00" />
+                <FrameLayout
+                    android:layout_width="150dp"
+                    android:layout_height="150dp">
+
+                    <com.google.android.material.progressindicator.CircularProgressIndicator
+                        android:id="@+id/ring"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:indeterminate="false"
+                        android:max="1000"
+                        app:indicatorSize="150dp"
+                        app:trackThickness="10dp"
+                        app:trackColor="?attr/colorPrimaryContainer"
+                        app:indicatorColor="?attr/colorPrimary" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:gravity="center"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/timerText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="00:00"
+                            android:textSize="32sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/goalText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:alpha="0.7"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/statusText"
@@ -75,133 +107,238 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:gravity="center"
-                    android:textSize="16sp" />
+                    android:textSize="14sp" />
 
-                <Button
-                    android:id="@+id/toggleButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:text="Start studying" />
-
-                <Button
-                    android:id="@+id/unlockButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Unlock apps" />
-                <Button
-                    android:id="@+id/adminButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Protect from uninstall"
-                    android:textAllCaps="false"
-                    android:textSize="12sp" />
-
-                <!-- Permission buttons: one compact row, each hides itself when granted -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
                     android:orientation="horizontal">
 
-                    <Button
-                        android:id="@+id/accessButton"
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/toggleButton"
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:layout_weight="1"
-                        android:minWidth="0dp"
-                        android:text="Accessibility"
-                        android:textAllCaps="false"
-                        android:textSize="12sp" />
+                        android:layout_height="56dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="3"
+                        android:text="Start studying" />
 
-                    <Button
-                        android:id="@+id/usageButton"
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/unlockButton"
+                        style="@style/Widget.Material3.Button.TonalButton"
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:layout_weight="1"
-                        android:minWidth="0dp"
-                        android:text="Usage access"
-                        android:textAllCaps="false"
-                        android:textSize="12sp" />
-
-                    <Button
-                        android:id="@+id/batteryButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:layout_weight="1"
-                        android:minWidth="0dp"
-                        android:text="Battery"
-                        android:textAllCaps="false"
-                        android:textSize="12sp" />
+                        android:layout_height="56dp"
+                        android:layout_weight="2"
+                        android:text="Unlock" />
                 </LinearLayout>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/setupCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:visibility="gone"
+                    app:cardBackgroundColor="?attr/colorPrimaryContainer"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Finish setup so the lock keeps working"
+                            android:textColor="?attr/colorOnPrimaryContainer"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/accessButton"
+                                style="@style/Widget.Material3.Button.TextButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:minWidth="0dp"
+                                android:text="Accessibility"
+                                android:textAllCaps="false"
+                                android:textSize="12sp" />
+
+                            <Button
+                                android:id="@+id/usageButton"
+                                style="@style/Widget.Material3.Button.TextButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:minWidth="0dp"
+                                android:text="Usage access"
+                                android:textAllCaps="false"
+                                android:textSize="12sp" />
+
+                            <Button
+                                android:id="@+id/batteryButton"
+                                style="@style/Widget.Material3.Button.TextButton"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:minWidth="0dp"
+                                android:text="Battery"
+                                android:textAllCaps="false"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/adminButton"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Protect from uninstall"
+                            android:textAllCaps="false"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
         </ScrollView>
 
-        <!-- BOTTOM HALF: locked games (left) and study apps (right) -->
+        <!-- BOTTOM HALF: locked apps (left) and study apps (right) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="8dp">
 
-            <LinearLayout
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
+                android:layout_margin="4dp"
                 android:layout_weight="1"
-                android:orientation="vertical">
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:strokeColor="?attr/colorPrimaryContainer"
+                app:strokeWidth="1dp">
 
-                <TextView
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="16dp"
-                    android:text="Locked games"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
+                    android:layout_height="match_parent"
+                    android:orientation="vertical">
 
-                <ListView
-                    android:id="@+id/lockedList"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="16dp"
+                        android:paddingTop="14dp"
+                        android:paddingEnd="16dp"
+                        android:paddingBottom="6dp">
 
-                <TextView
-                    android:id="@+id/lockedEmpty"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="16dp"
-                    android:text="Nothing locked yet. Tap +." />
-            </LinearLayout>
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Locked apps"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
 
-            <LinearLayout
+                        <TextView
+                            android:id="@+id/lockedCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:alpha="0.7"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <ListView
+                        android:id="@+id/lockedList"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:divider="@android:color/transparent"
+                        android:dividerHeight="0dp" />
+
+                    <TextView
+                        android:id="@+id/lockedEmpty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:alpha="0.7"
+                        android:gravity="center"
+                        android:padding="24dp"
+                        android:text="Nothing locked yet.\nTap + to choose apps." />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
+                android:layout_margin="4dp"
                 android:layout_weight="1"
-                android:orientation="vertical">
+                app:cardBackgroundColor="?attr/colorSurface"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:strokeColor="?attr/colorPrimaryContainer"
+                app:strokeWidth="1dp">
 
-                <TextView
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="16dp"
-                    android:text="Study apps"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
+                    android:layout_height="match_parent"
+                    android:orientation="vertical">
 
-                <ListView
-                    android:id="@+id/studyList"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="16dp"
+                        android:paddingTop="14dp"
+                        android:paddingEnd="16dp"
+                        android:paddingBottom="6dp">
 
-                <TextView
-                    android:id="@+id/studyEmpty"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="16dp"
-                    android:text="No study apps yet. Tap +." />
-            </LinearLayout>
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Study apps"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/studyCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:alpha="0.7"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <ListView
+                        android:id="@+id/studyList"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:divider="@android:color/transparent"
+                        android:dividerHeight="0dp" />
+
+                    <TextView
+                        android:id="@+id/studyEmpty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:alpha="0.7"
+                        android:gravity="center"
+                        android:padding="24dp"
+                        android:text="No study apps yet.\nTap + to add some." />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
     </LinearLayout>
 

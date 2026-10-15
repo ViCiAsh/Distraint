@@ -1,35 +1,75 @@
-<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F2101418"
+    android:background="#F20D1220"
     android:gravity="center"
     android:orientation="vertical"
     android:padding="32dp">
+
+    <ImageView
+        android:id="@+id/overlayIcon"
+        android:layout_width="72dp"
+        android:layout_height="72dp" />
 
     <TextView
         android:id="@+id/overlayApp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#B3FFFFFF"
-        android:textSize="16sp" />
+        android:layout_marginTop="16dp"
+        android:textColor="#99FFFFFF"
+        android:textSize="15sp" />
 
     <TextView
         android:id="@+id/overlayTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="8dp"
         android:gravity="center"
         android:textColor="#FFFFFF"
-        android:textSize="40sp"
+        android:textSize="34sp"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/overlayMessage"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="12dp"
         android:gravity="center"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp" />
+        android:textColor="#E6FFFFFF"
+        android:textSize="16sp" />
+
+    <LinearLayout
+        android:id="@+id/overlayProgressBox"
+        android:layout_width="240dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:id="@+id/overlayProgress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="8dp"
+            android:max="1000"
+            android:progressBackgroundTint="#33FFFFFF"
+            android:progressTint="#49B7F5" />
+
+        <TextView
+            android:id="@+id/overlayProgressText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:textColor="#B3FFFFFF"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="40dp"
+        android:text="Tap anywhere to go home"
+        android:textColor="#66FFFFFF"
+        android:textSize="12sp" />
 </LinearLayout>

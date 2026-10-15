@@ -5,8 +5,10 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.PixelFormat;
+import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -18,7 +20,11 @@ import android.view.Gravity;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.InputMethodInfo;
+import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
+
+import java.util.Locale;
 
 
 /** Watches window changes; if a locked game comes up, sends the user to the study screen. */
@@ -134,14 +140,19 @@ public class BlockerService extends AccessibilityService {
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
         lp.y = (int) (48 * getResources().getDisplayMetrics().density);
+        graceBanner.setAlpha(0f);
+        graceBanner.setTranslationY(-48 * getResources().getDisplayMetrics().density);
         wm.addView(graceBanner, lp);
+        graceBanner.animate().alpha(1f).translationY(0f).setDuration(240).start();
     }
 
     private void removeBanner() {
-        if (graceBanner != null) {
-            wm.removeView(graceBanner);
-            graceBanner = null;
-        }
+        View b = graceBanner;
+        if (b == null) return;
+        graceBanner = null;
+        b.animate().alpha(0f).setDuration(200).withEndAction(() -> {
+            try { wm.removeView(b); } catch (Exception ignored) { }
+        }).start();
     }
 
     private void postGraceNotification() {
@@ -161,27 +172,39 @@ public class BlockerService extends AccessibilityService {
                 .build();
         nm.notify(GRACE_NOTIF_ID, n);
     }
-    private void showOverlay(String pkg, StudyState state) {
-        overlay = LayoutInflater.from(this).inflate(R.layout.overlay_block, null);
+    private static String clock(long s) {
+        return String.format(Locale.US, "%02d:%02d", s / 60, s % 60);
+    }
 
+    private void showOverlay(String pkg, StudyState state) {
+        PackageManager pm = getPackageManager();
         String label = pkg;
+        Drawable icon = null;
         try {
-            PackageManager pm = getPackageManager();
-            label = pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString();
+            ApplicationInfo info = pm.getApplicationInfo(pkg, 0);
+            label = pm.getApplicationLabel(info).toString();
+            icon = pm.getApplicationIcon(info);
         } catch (Exception e) {
-            // keep the raw package name
+            // keep the raw package name and no icon
         }
 
-        long remaining = state.goalSec() - state.totalStudiedSec();
+        long goal = Math.max(1, state.goalSec());
+        long total = state.totalStudiedSec();
+        long remaining = goal - total;
         String title, message;
+        int progress = -1;                 // -1 means "no progress bar"
+        String progressText = null;
+
         if (state.perAppActive() && state.isUnlocked()) {
             title = "Time's up";
             message = "You've used your " + state.timedMin() + " minutes in " + label + " for today.";
-        }else if (remaining > 0) {
+        } else if (remaining > 0) {
             long mins = (remaining + 59) / 60;
             title = "Study first";
             message = mins + (mins == 1 ? " more minute" : " more minutes")
                     + " of studying unlocks your apps.";
+            progress = (int) (1000 * Math.min(total, goal) / goal);
+            progressText = clock(total) + " / " + clock(goal);
         } else if (state.canUnlock()) {
             title = "You've earned it";
             message = "Open StudyLock and unlock your apps.";
@@ -189,10 +212,29 @@ public class BlockerService extends AccessibilityService {
             title = "Not today";
             message = "Today's unlock has ended. Apps open again after the daily reset.";
         }
+        showMessage(icon, label + " is locked", title, message, progress, progressText);
+    }
 
-        ((TextView) overlay.findViewById(R.id.overlayApp)).setText(label + " is locked");
+    private void showMessage(Drawable icon, String appLine, String title, String message,
+                             int progress, String progressText) {
+        overlay = LayoutInflater.from(this).inflate(R.layout.overlay_block, null);
+
+        ImageView iconView = overlay.findViewById(R.id.overlayIcon);
+        if (icon != null) iconView.setImageDrawable(icon);
+        else iconView.setVisibility(View.GONE);
+
+        ((TextView) overlay.findViewById(R.id.overlayApp)).setText(appLine);
         ((TextView) overlay.findViewById(R.id.overlayTitle)).setText(title);
         ((TextView) overlay.findViewById(R.id.overlayMessage)).setText(message);
+
+        View box = overlay.findViewById(R.id.overlayProgressBox);
+        if (progress >= 0) {
+            ((ProgressBar) overlay.findViewById(R.id.overlayProgress)).setProgress(progress);
+            ((TextView) overlay.findViewById(R.id.overlayProgressText)).setText(progressText);
+            box.setVisibility(View.VISIBLE);
+        } else {
+            box.setVisibility(View.GONE);
+        }
         overlay.setOnClickListener(v -> closeOverlay());
 
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
@@ -203,7 +245,10 @@ public class BlockerService extends AccessibilityService {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT);
+
+        overlay.setAlpha(0f);                                  // start invisible, fade in
         wm.addView(overlay, lp);
+        overlay.animate().alpha(1f).setDuration(180).start();
 
         handler.postDelayed(autoClose, 2000);
     }

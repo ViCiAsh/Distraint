@@ -7,15 +7,17 @@ import android.widget.RadioGroup;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.button.MaterialButtonToggleGroup;
+
 public class SettingsActivity extends AppCompatActivity {
     private StudyState state;
     private EditText requiredEdit, unlockEdit, resetEdit;
-    private RadioGroup combineGroup;
-
-    private RadioGroup limitGroup;
+    private MaterialButtonToggleGroup combineGroup, limitGroup;
 
     @Override
     protected void onCreate(Bundle b) {
+        AppCompatDelegate.setDefaultNightMode(new StudyState(this).themeMode());
         super.onCreate(b);
         setContentView(R.layout.activity_settings);
         state = new StudyState(this);
@@ -32,21 +34,23 @@ public class SettingsActivity extends AppCompatActivity {
         limitGroup.check(state.shown("limit_style") == StudyState.LIMIT_PER_APP
                 ? R.id.limitEach : R.id.limitShared);
 
-        RadioGroup themeGroup = findViewById(R.id.themeGroup);
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        toolbar.setNavigationOnClickListener(v -> finish());
+
+        MaterialButtonToggleGroup themeGroup = findViewById(R.id.themeGroup);
         int mode = state.themeMode();
         themeGroup.check(mode == AppCompatDelegate.MODE_NIGHT_NO ? R.id.themeLight
                 : mode == AppCompatDelegate.MODE_NIGHT_YES ? R.id.themeDark
                   : R.id.themeSystem);
-        themeGroup.setOnCheckedChangeListener((group, id) -> {
+        themeGroup.addOnButtonCheckedListener((group, id, isChecked) -> {
+            if (!isChecked) return;
             int m = id == R.id.themeLight ? AppCompatDelegate.MODE_NIGHT_NO
                     : id == R.id.themeDark ? AppCompatDelegate.MODE_NIGHT_YES
                       : AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM;
             state.setThemeMode(m);
             AppCompatDelegate.setDefaultNightMode(m);
+            group.post(() -> ThemeGuard.enforce(this, m));
         });
-        combineGroup = findViewById(R.id.combineGroup);
-        combineGroup.check(state.shown("combine") == StudyState.COMBINE_INDIVIDUAL
-                ? R.id.combineEach : R.id.combineTotal);
     }
     private int shownUnlockMin() {
         return state.shown("mode") == StudyState.MODE_REST_OF_DAY ? 0 : state.shown("timed_min");
@@ -70,12 +74,18 @@ public class SettingsActivity extends AppCompatActivity {
         state.setUnlockMinutes(unlock);
 
         state.setPending("combine",
-                combineGroup.getCheckedRadioButtonId() == R.id.combineEach
+                combineGroup.getCheckedButtonId() == R.id.combineEach
                         ? StudyState.COMBINE_INDIVIDUAL : StudyState.COMBINE_TOTAL);
 
         state.setPending("rollover_hour", read(resetEdit, state.shown("rollover_hour"), 0, 23));
         state.setPending("limit_style",
-                limitGroup.getCheckedRadioButtonId() == R.id.limitEach
+                limitGroup.getCheckedButtonId() == R.id.limitEach
                         ? StudyState.LIMIT_PER_APP : StudyState.LIMIT_SHARED);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        ThemeGuard.enforce(this, new StudyState(this).themeMode());
     }
 }

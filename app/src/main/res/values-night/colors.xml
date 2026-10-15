@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_primary">#49B7F5</color>
+    <color name="brand_on_primary">#06203A</color>
+    <color name="brand_primary_container">#1B3A6E</color>
+    <color name="brand_on_primary_container">#D9E4FF</color>
+    <color name="brand_accent">#19CEFB</color>
+    <color name="app_background">#0D1220</color>
+    <color name="app_surface">#161D30</color>
+    <color name="app_on_surface">#E6ECFA</color>
+    <color name="danger">#EF5350</color>
+    <color name="success">#66BB6A</color>
+</resources>
