@@ -11,7 +11,6 @@ import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -27,24 +26,55 @@ import android.widget.TextView;
 import java.util.Locale;
 
 
-/** Watches window changes; if a locked game comes up, sends the user to the study screen. */
+/**
+ * BlockerService: the accessibility service that actually enforces the lock.
+ *
+ * It listens for window changes (TYPE_WINDOW_STATE_CHANGED). For each change it works out which app came to
+ * the front and decides, using StudyState, whether that app may be used right now.
+ *
+ *   locked app, no time left   -> full-screen lock overlay (showOverlay), then the user is sent home
+ *   locked app, still has time -> remember it (currentLocked) and schedule 'expiry' for when its time ends
+ *   expiry fires               -> "Time's up" popup + notification countdown (startGrace), then lock (finishGrace)
+ *   any other app              -> forget currentLocked and cancel a running countdown
+ *
+ * Overlays use TYPE_ACCESSIBILITY_OVERLAY, which needs no extra permission but only works from inside an
+ * accessibility service.
+ *
+ * DEBUGGING TIPS
+ *   - Nothing is blocked: is the service enabled AND running? (BlockerService.isRunning(); the red banner on
+ *     the home screen reports it.) Some phones kill the service in the background: check the battery exemption.
+ *   - Lock screen never appears: check StudyState.blocked(), msLeftFor(pkg), and that usage access is granted
+ *     when per-app mode is on.
+ *   - Lock screen keeps reappearing or never closes: look at the 'overlay' field; it is null only while no
+ *     overlay is showing.
+ *   - Countdown notification missing: notification permission (Android 13+) or the "grace" channel was
+ *     switched off by the user.
+ */
 public class BlockerService extends AccessibilityService {
 
+    // true between onServiceConnected and onUnbind/onDestroy. MainActivity reads it (same process) to detect a dead service.
     private static volatile boolean running = false;
 
     public static boolean isRunning() { return running; }
+    // wm: adds and removes overlay windows. overlay: the full-screen lock view while it is showing; null otherwise,
+    // so it doubles as the "already showing" guard. handler: main-thread timer for delayed actions.
     private WindowManager wm;
     private View overlay;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    // Closes the lock overlay a moment after it appears (scheduled in showMessage).
     private final Runnable autoClose = this::closeOverlay;
     private static final long BANNER_MS = 4_000L;    // how long the popup stays up
+    // Notification id and channel for the countdown shown in the notification shade.
     private static final int GRACE_NOTIF_ID = 42;
     private static final String CHANNEL_ID = "grace";
 
+    // "Time's up" grace period state. graceEnd locks the app when the countdown ends; hideBanner removes only
+    // the popup after BANNER_MS, while the notification keeps counting down.
     private boolean graceActive;
     private final Runnable graceEnd = this::finishGrace;
     private final Runnable hideBanner = this::removeBanner;
 
+    /** Called by Android when the user switches the service on (or the phone restarts it). */
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
@@ -52,15 +82,24 @@ public class BlockerService extends AccessibilityService {
         running = true;
     }
 
+    /**
+     * Runs on every window change. Decides what to do about the app that just came to the front:
+     *   - system UI, keyboard or StudyLock itself: ignore
+     *   - not a locked app: forget the current locked app and cancel any running countdown
+     *   - locked app that still has time: remember it and schedule the end of its time (expiry)
+     *   - locked app with no time left: show the lock screen (this also covers a screen change during the countdown)
+     */
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         CharSequence p = event.getPackageName();
         if (p == null) return;
         String pkg = p.toString();
+        // Ignore our own windows, the notification shade and the keyboard: they are not "the app the user is in".
         if (isNoise(pkg)) return;
         if (overlay != null) return;                       // lock screen already showing
 
+        // A fresh StudyState reads the current saved values; rollover() applies the daily reset if it is due.
         StudyState state = new StudyState(this);
         state.rollover();
 
@@ -96,6 +135,10 @@ public class BlockerService extends AccessibilityService {
         return false;
     }
 
+    /**
+     * Starts the "Time's up" grace period for the locked app on screen: a short popup, a countdown notification,
+     * and a timer that locks the app after GRACE_MS. Does nothing if a grace period is already running.
+     */
     private void startGrace() {
         if (graceActive) return;
         graceActive = true;
@@ -106,6 +149,7 @@ public class BlockerService extends AccessibilityService {
         handler.postDelayed(graceEnd, GRACE_MS);      // the lock happens when the time is up
     }
 
+    /** Grace period over: lock the app, unless it has been unlocked again in the meantime. */
     private void finishGrace() {
         String pkg = currentLocked;
         removeGrace();
@@ -116,6 +160,7 @@ public class BlockerService extends AccessibilityService {
         if (!s.isUnlocked()) showOverlay(pkg, s);
     }
 
+    /** Cancels everything belonging to a grace period (timers, popup, notification). Safe to call at any time. */
     private void removeGrace() {
         if (!graceActive) return;
         graceActive = false;
@@ -125,6 +170,7 @@ public class BlockerService extends AccessibilityService {
         ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancel(GRACE_NOTIF_ID);
     }
 
+    /** The small "Time's up" popup at the top of the screen. Touches pass through it, so the game stays usable. */
     private void showBanner() {
         graceBanner = LayoutInflater.from(this).inflate(R.layout.overlay_timeup, null);
         ((TextView) graceBanner.findViewById(R.id.graceCount))
@@ -146,6 +192,7 @@ public class BlockerService extends AccessibilityService {
         graceBanner.animate().alpha(1f).translationY(0f).setDuration(240).start();
     }
 
+    /** Fades the popup out and removes it. The field is cleared first so other code treats it as gone at once. */
     private void removeBanner() {
         View b = graceBanner;
         if (b == null) return;
@@ -155,6 +202,7 @@ public class BlockerService extends AccessibilityService {
         }).start();
     }
 
+    /** Silent notification with a live countdown to the lock. The system ticks the clock itself (chronometer, counting down). */
     private void postGraceNotification() {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         nm.createNotificationChannel(new NotificationChannel(
@@ -172,10 +220,15 @@ public class BlockerService extends AccessibilityService {
                 .build();
         nm.notify(GRACE_NOTIF_ID, n);
     }
+    /** Formats seconds as mm:ss. */
     private static String clock(long s) {
         return String.format(Locale.US, "%02d:%02d", s / 60, s % 60);
     }
 
+    /**
+     * Works out what the lock screen should say for a locked app (four situations: per-app time used up, study
+     * still required, goal reached but not unlocked, today's unlock over) and passes it to showMessage().
+     */
     private void showOverlay(String pkg, StudyState state) {
         PackageManager pm = getPackageManager();
         String label = pkg;
@@ -215,6 +268,7 @@ public class BlockerService extends AccessibilityService {
         showMessage(icon, label + " is locked", title, message, progress, progressText);
     }
 
+    /** Builds and shows the full-screen lock overlay. progress < 0 hides the progress bar. Closes itself after 2 s. */
     private void showMessage(Drawable icon, String appLine, String title, String message,
                              int progress, String progressText) {
         overlay = LayoutInflater.from(this).inflate(R.layout.overlay_block, null);
@@ -253,6 +307,7 @@ public class BlockerService extends AccessibilityService {
         handler.postDelayed(autoClose, 2000);
     }
 
+    /** Sends the user to the home screen, then removes the overlay a moment later so the app is never seen again. */
     private void closeOverlay() {
         handler.removeCallbacks(autoClose);
         if (overlay == null) return;
@@ -265,6 +320,7 @@ public class BlockerService extends AccessibilityService {
         }, 300);                                            // then remove the cover
     }
 
+    /** Service is stopping: clean up so no overlay or timer is left behind. */
     @Override
     public void onDestroy() {
         super.onDestroy();
@@ -277,20 +333,28 @@ public class BlockerService extends AccessibilityService {
         handler.removeCallbacks(expiry);
         removeGrace();
     }
+    // Called when the service is switched off in Android's settings.
     @Override
     public boolean onUnbind(Intent intent) {
         running = false;
         return super.onUnbind(intent);
     }
 
+    // Length of the "Time's up" countdown, in milliseconds (30_000 = 30 seconds).
     private static final long GRACE_MS = 30_000L;   // change to 30 * 60_000L if you really want minutes
 
+    // Package of the locked app the user is in while it still has time (null otherwise). Set in onAccessibilityEvent;
+    // expiry and finishGrace use it to know which app to lock.
     private String currentLocked;        // locked game currently on screen under an unlock
+    // The popup view while it is showing (null otherwise).
     private View graceBanner;
+    // UNUSED: left over from an earlier on-screen ticking countdown; safe to delete.
     private long graceEndsAt;
 
+    // Fires when the current locked app's time should be over; checkExpiry() double-checks before locking.
     private final Runnable expiry = this::checkExpiry;
 
+    /** Re-checks the app's remaining time (timers can fire early after the phone sleeps); starts the grace period only if time is truly up. */
     private void checkExpiry() {
         if (currentLocked == null) return;
         StudyState s = new StudyState(this);
@@ -305,6 +369,7 @@ public class BlockerService extends AccessibilityService {
 
 
 
+    // Required by AccessibilityService; nothing to do.
     @Override
     public void onInterrupt() { }
 }

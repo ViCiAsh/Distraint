@@ -8,6 +8,14 @@
     <color name="app_background">#F5F7FB</color>
     <color name="app_surface">#FFFFFF</color>
     <color name="app_on_surface">#12254C</color>
+    <color name="brand_primary_dark">#49B7F5</color>
+    <color name="brand_on_primary_dark">#06203A</color>
+    <color name="brand_primary_container_dark">#1B3A6E</color>
+    <color name="brand_on_primary_container_dark">#D9E4FF</color>
+    <color name="brand_accent_dark">#19CEFB</color>
+    <color name="app_background_dark">#0D1220</color>
+    <color name="app_surface_dark">#161D30</color>
+    <color name="app_on_surface_dark">#E6ECFA</color>
     <color name="danger">#C62828</color>
     <color name="success">#2E7D32</color>
 </resources>

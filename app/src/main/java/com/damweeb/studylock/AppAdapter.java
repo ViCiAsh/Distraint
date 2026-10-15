@@ -17,13 +17,25 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Row adapter for the two lists on the home screen. It only DISPLAYS: MainActivity.loadLists() decides what
+ * subtitle and progress bar each package gets (via the two maps), and this class turns a package name into
+ * an icon + app name + optional subtitle + optional bar.
+ *
+ * DEBUGGING TIPS
+ *   - NullPointerException at findViewById: an id is missing from item_app.xml.
+ *   - A row shows a raw package name and no icon: the app is no longer installed.
+ *   - No subtitle or bar on a row: the maps have no entry for that package (pending apps get none on purpose).
+ */
 public class AppAdapter extends ArrayAdapter<String> {
     private final Set<String> pending;        // apps flagged with pendingNote
-    private final String pendingNote;// apps that aren't being measured yet
+    private final String pendingNote;// text appended to the name of pending apps
 
+    // Per-package display data supplied by MainActivity. A missing entry means "hide that element".
     private final Map<String, String> subtitles;   // text under the name, per app
     private final Map<String, Integer> progress;   // 0..1000 bar value, per app
 
+    // pkgs: the package names to show, in order. super(c, 0, pkgs): resource 0 because getView() builds the row itself.
     public AppAdapter(Context c, List<String> pkgs, Set<String> pending, String pendingNote,
                       Map<String, String> subtitles, Map<String, Integer> progress) {
         super(c, 0, pkgs);
@@ -33,6 +45,10 @@ public class AppAdapter extends ArrayAdapter<String> {
         this.progress = progress;
     }
 
+    /**
+     * Builds one row. convertView is a recycled row from an item that scrolled off screen, so EVERY element must
+     * be set (or hidden) on both branches below; otherwise a recycled row would show stale text or a stale bar.
+     */
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         if (convertView == null) {
@@ -75,6 +91,7 @@ public class AppAdapter extends ArrayAdapter<String> {
         return convertView;
     }
 
+    // UNUSED: leftover from an earlier version (MainActivity formats times now). Safe to delete, together with the Locale import.
     private static String formatDuration(long sec) {
         long h = sec / 3600, m = (sec % 3600) / 60, s = sec % 60;
         return h > 0

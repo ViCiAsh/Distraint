@@ -16,7 +16,6 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.app.AppCompatDelegate;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,19 +23,34 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * One picker screen for both lists. MainActivity's "+" menu starts it with the boolean extra "study":
+ *   study = false -> apps to lock (StudyState.saveBlocked)
+ *   study = true  -> study apps (StudyState.saveStudyApps)
+ *
+ * The UI is built in code (title, hint, multi-choice list). Nothing is saved until the screen is left:
+ * onPause() reads the ticked rows and hands them to StudyState, which decides what applies now and what
+ * waits for the reset.
+ *
+ * DEBUGGING TIPS
+ *   - The app list is nearly empty: the <queries> entry for launcher apps is missing from the manifest (Android 11+).
+ *   - A change "didn't apply": check the hint text on this screen and StudyState's pending_ keys; it may be queued.
+ */
 public class GamePickerActivity extends AppCompatActivity {
+    // true = editing the study apps list, false = the locked apps list (from the "study" extra).
     private boolean studyMode;
+    // Parallel to the rows of the list: row i belongs to packages.get(i).
     private final List<String> packages = new ArrayList<>();
     private ListView list;
     private StudyState state;
 
     @Override
     protected void onCreate(Bundle b) {
-        AppCompatDelegate.setDefaultNightMode(new StudyState(this).themeMode());
         super.onCreate(b);
         state = new StudyState(this);
         studyMode = getIntent().getBooleanExtra("study", false);
 
+        // The screen is built in code: a title, a hint about when changes apply, and a multi-choice list.
         list = new ListView(this);
         list.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
         TextView title = new TextView(this);
@@ -61,6 +75,7 @@ public class GamePickerActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         setContentView(root);
 
+        // List every app that has a launcher icon, sorted by name. Our own app is skipped below.
         PackageManager pm = getPackageManager();
         Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> apps = pm.queryIntentActivities(launcher, 0);
@@ -73,6 +88,7 @@ public class GamePickerActivity extends AppCompatActivity {
             packages.add(pkg);
             labels.add(ri.loadLabel(pm).toString());
         }
+        // Standard checkbox row; getView() adds the app icon at the start of each row.
         list.setAdapter(new ArrayAdapter<String>(this,
                 android.R.layout.simple_list_item_multiple_choice, labels) {
             @Override
@@ -92,6 +108,8 @@ public class GamePickerActivity extends AppCompatActivity {
             }
         });
 
+        // Pre-tick the current choices. Queued study apps count as ticked (what the user chose last time);
+        // locked apps queued for removal count as unticked.
         Set<String> ticked0;
         if (studyMode) {
             ticked0 = state.studyApps();
@@ -105,6 +123,7 @@ public class GamePickerActivity extends AppCompatActivity {
         }
     }
 
+    // There is no Save button: the choices are saved whenever the screen is left (back, home, or another screen).
     @Override
     protected void onPause() {
         super.onPause();

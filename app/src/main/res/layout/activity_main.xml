@@ -63,8 +63,8 @@
                 android:padding="16dp">
 
                 <FrameLayout
-                    android:layout_width="150dp"
-                    android:layout_height="150dp">
+                    android:layout_width="160dp"
+                    android:layout_height="160dp">
 
                     <com.google.android.material.progressindicator.CircularProgressIndicator
                         android:id="@+id/ring"
