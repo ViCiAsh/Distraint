@@ -297,22 +297,34 @@ public class StudyState {
      * that is furthest behind in individual mode. The in-app timer counts toward every app.
      * (Name kept so existing callers keep working.)
      */
-    public long totalStudiedSec() {
-        long inApp = studiedSec();
-        Set<String> study = studyApps();
-
-        if (combineMode() == COMBINE_INDIVIDUAL && !study.isEmpty()) {
-            Map<String, Long> byApp = appSecByPackage();
-            long lowest = Long.MAX_VALUE;
-            for (String pkg : study) {
-                lowest = Math.min(lowest, inApp + byApp.getOrDefault(pkg, 0L));
-            }
-            return lowest;
-        }
-        return inApp + appStudySec();
+    /** True when individual mode applies (it needs at least one study app to mean anything). */
+    public boolean individualActive() {
+        return combineMode() == COMBINE_INDIVIDUAL && !studyApps().isEmpty();
     }
 
-    public boolean requirementMet() { return totalStudiedSec() >= requiredMin() * 60L; }
+    /** What the counter has to reach: the required time, times the number of study apps in individual mode. */
+    public long goalSec() {
+        long perApp = requiredMin() * 60L;
+        return individualActive() ? perApp * studyApps().size() : perApp;
+    }
+
+    /** Progress toward the goal. */
+    public long totalStudiedSec() {
+        if (individualActive()) {
+            long cap = requiredMin() * 60L;
+            Map<String, Long> byApp = appSecByPackage();
+            long sum = studiedSec();                 // new: the Start studying timer counts fully, no cap
+            for (String pkg : studyApps()) {
+                sum += Math.min(cap, byApp.getOrDefault(pkg, 0L));   // each study app stops at the cap
+            }
+            return sum;
+        }
+        return studiedSec() + appStudySec();
+    }
+
+    public boolean requirementMet() { return totalStudiedSec() >= goalSec(); }
+
+
 
     // ------------------------------------------------------------------
     // Unlocking

@@ -346,12 +346,16 @@ public class MainActivity extends AppCompatActivity {
         if (state.isUnlocked()) status = "Apps are unlocked.";
         else if (state.canUnlock()) status = "Goal reached. You can unlock your apps.";
         else {
-            boolean each = state.combineMode() == StudyState.COMBINE_INDIVIDUAL
-                    && !state.studyApps().isEmpty();
+            if (state.individualActive()) {
+            int n = state.studyApps().size();
             status = String.format(Locale.US,
-                    each ? "Study %d min in each study app to unlock games."
-                            : "Study %d min today to unlock games.",
-                    state.requiredMin());
+                    "Reach %d min: each of your %d study apps counts up to %d min, "
+                            + "and the Start studying timer has no limit.",
+                    state.requiredMin() * n, n, state.requiredMin());
+        } else {
+                status = String.format(Locale.US,
+                        "Study %d min today to unlock games.", state.requiredMin());
+            }
         }
         statusText.setText(status);
         unlockButton.setEnabled(state.canUnlock());

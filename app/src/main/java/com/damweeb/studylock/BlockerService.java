@@ -51,7 +51,7 @@ public class BlockerService extends AccessibilityService {
             // keep the raw package name
         }
 
-        long remaining = state.requiredMin() * 60L - state.totalStudiedSec();
+        long remaining = state.goalSec() - state.totalStudiedSec();
         String title, message;
         if (remaining > 0) {
             long mins = (remaining + 59) / 60;

@@ -31,10 +31,11 @@
                 android:id="@+id/settingsButton"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Settings"
-                android:src="@android:drawable/ic_menu_preferences"
-                app:tint="?android:attr/textColorPrimary" />
+                android:src="@drawable/ic_settings" />
         </LinearLayout>
 
         <!-- TOP HALF: timer, status, buttons -->
@@ -78,7 +79,7 @@
                     android:id="@+id/unlockButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Unlock games" />
+                    android:text="Unlock apps" />
                 <Button
                     android:id="@+id/adminButton"
                     android:layout_width="match_parent"
