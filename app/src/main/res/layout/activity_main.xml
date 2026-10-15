@@ -50,7 +50,7 @@
                 android:layout_height="match_parent"
                 android:orientation="vertical"
                 android:gravity="center"
-                android:padding="24dp">
+                android:padding="16dp">
 
                 <TextView
                     android:id="@+id/timerText"
@@ -79,6 +79,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Unlock games" />
+                <Button
+                    android:id="@+id/adminButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Protect from uninstall"
+                    android:textAllCaps="false"
+                    android:textSize="12sp" />
 
                 <!-- Permission buttons: one compact row, each hides itself when granted -->
                 <LinearLayout

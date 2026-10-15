@@ -2,6 +2,8 @@ package com.damweeb.studylock;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -19,6 +21,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AlertDialog;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -81,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)));
         findViewById(R.id.settingsButton).setOnClickListener(v ->
                 startActivity(new Intent(this, SettingsActivity.class)));
+        findViewById(R.id.adminButton).setOnClickListener(v -> requestAdmin());
 
         lockedList = findViewById(R.id.lockedList);
         studyAppList = findViewById(R.id.studyList);
@@ -110,6 +114,7 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         state.rollover();
         loadLists();
+        runOnboarding();
         updatePermissionButtons();
         refresh();
     }
@@ -150,6 +155,86 @@ public class MainActivity extends AppCompatActivity {
                 pendingAdds, " · from from next reset"));
     }
 
+    private boolean isAdminActive() {
+        DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+        return dpm.isAdminActive(new ComponentName(this, AdminReceiver.class));
+    }
+
+    private Intent adminIntent() {
+        Intent i = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+        i.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN,
+                new ComponentName(this, AdminReceiver.class));
+        i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "Stops StudyLock from being uninstalled with one tap.");
+        return i;
+    }
+
+    private void requestAdmin() {
+        startActivity(adminIntent());
+    }
+
+    private boolean asking;
+
+    @SuppressLint("BatteryLife")
+    private void runOnboarding() {
+        if (asking) return;                          // a dialog is already on screen
+        while (state.onboardStep() < 4) {
+            int step = state.onboardStep();
+            state.setOnboardStep(step + 1);          // remember we asked, even if skipped
+
+            String title, message;
+            Intent intent;
+            switch (step) {
+                case 0:
+                    if (isBlockerEnabled()) continue;
+                    title = "Accessibility";
+                    message = "StudyLock uses this to notice when a locked game opens. "
+                            + "On the next screen, find StudyLock and turn it on.";
+                    intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                    break;
+                case 1:
+                    if (state.hasUsageAccess()) continue;
+                    title = "Usage access";
+                    message = "This lets StudyLock count the time you spend in your study apps. "
+                            + "Find StudyLock in the list and allow it.";
+                    intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+                    break;
+                case 2:
+                    if (hasBatteryExemption()) continue;
+                    title = "Background running";
+                    message = "This keeps your phone from shutting the blocker down to save battery.";
+                    intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:" + getPackageName()));
+                    break;
+                default:
+                    if (isAdminActive()) continue;
+                    title = "Uninstall protection";
+                    message = "This makes StudyLock harder to remove on an impulse.";
+                    intent = adminIntent();
+                    break;
+            }
+            askFor(title, message, intent);
+            return;
+        }
+    }
+
+    private void askFor(String title, String message, Intent intent) {
+        asking = true;
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setCancelable(false)
+                .setPositiveButton("Continue", (d, w) -> {
+                    asking = false;
+                    startActivity(intent);
+                })
+                .setNegativeButton("Skip", (d, w) -> {
+                    asking = false;
+                    runOnboarding();
+                })
+                .show();
+    }
+
     private void updatePermissionButtons() {
         findViewById(R.id.usageButton).setVisibility(
                 state.hasUsageAccess() ? View.GONE : View.VISIBLE);
@@ -157,6 +242,8 @@ public class MainActivity extends AppCompatActivity {
                 isBlockerEnabled() ? View.GONE : View.VISIBLE);
         findViewById(R.id.batteryButton).setVisibility(
                 hasBatteryExemption() ? View.GONE : View.VISIBLE);
+        findViewById(R.id.adminButton).setVisibility(
+                isAdminActive() ? View.GONE : View.VISIBLE);
     }
 
     private boolean isBlockerEnabled() {

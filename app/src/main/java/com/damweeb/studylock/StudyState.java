@@ -220,4 +220,8 @@ public class StudyState {
     public boolean isUnlocked() {
         return System.currentTimeMillis() < p.getLong("unlocked_until", 0);
     }
+
+    public int onboardStep() { return p.getInt("onboard_step", 0); }
+
+    public void setOnboardStep(int step) { p.edit().putInt("onboard_step", step).apply(); }
 }
