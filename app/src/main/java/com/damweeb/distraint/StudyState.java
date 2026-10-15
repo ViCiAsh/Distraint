@@ -1,4 +1,4 @@
-package com.damweeb.studylock;
+package com.damweeb.distraint;
 
 import android.app.AppOpsManager;
 import android.app.usage.UsageEvents;
@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * StudyState: the single source of truth for everything StudyLock remembers.
+ * StudyState: the single source of truth for everything Distraint remembers.
  *
  * Every screen and the accessibility service create their own StudyState(context). They all read
  * and write the same SharedPreferences file ("study_state"), so a change made in one place is seen
@@ -48,7 +48,7 @@ import java.util.Set;
  *   One-time: onboard_step, study_setup_done, combine_chosen, required_chosen, unlock_chosen, limit_chosen
  *
  * DEBUGGING TIPS
- *   - Android Studio > Device File Explorer > data/data/com.damweeb.studylock/shared_prefs/study_state.xml
+ *   - Android Studio > Device File Explorer > data/data/com.damweeb.Distraint/shared_prefs/study_state.xml
  *     shows every key above with its current value.
  *   - Nothing gets locked: is blocked empty? Is isUnlocked() true? In per-app mode, is usage access
  *     missing? (msLeftFor() fails closed and returns 0 without it.)
@@ -624,4 +624,6 @@ public class StudyState {
 
     // Epoch ms when the current unlock ends (0 = not unlocked today).
     public long unlockedUntil() { return p.getLong("unlocked_until", 0); }
+    // Epoch ms when the current unlock started (0 = not unlocked today). Used to warn only once per unlock.
+    public long unlockAt() { return p.getLong("unlock_at", 0); }
 }

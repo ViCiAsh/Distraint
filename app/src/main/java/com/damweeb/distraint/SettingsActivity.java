@@ -1,4 +1,4 @@
-package com.damweeb.studylock;
+package com.damweeb.distraint;
 
 import android.os.Bundle;
 import android.widget.EditText;

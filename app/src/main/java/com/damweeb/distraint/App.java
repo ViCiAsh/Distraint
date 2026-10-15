@@ -1,4 +1,4 @@
-package com.damweeb.studylock;
+package com.damweeb.distraint;
 
 import android.app.Application;
 

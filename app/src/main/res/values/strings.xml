@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">StudyLock</string>
-    <string name="service_desc">Detects when a locked game opens so StudyLock can send you back to study.</string>
+    <string name="app_name">Distraint</string>
+    <string name="service_desc">Detects when a locked game opens so Distraint can send you back to study.</string>
 </resources>

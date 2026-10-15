@@ -1,4 +1,4 @@
-package com.damweeb.studylock;
+package com.damweeb.distraint;
 
 import android.accessibilityservice.AccessibilityService;
 import android.app.Notification;
@@ -23,7 +23,9 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 
 /**
@@ -73,6 +75,14 @@ public class BlockerService extends AccessibilityService {
     private boolean graceActive;
     private final Runnable graceEnd = this::finishGrace;
     private final Runnable hideBanner = this::removeBanner;
+    // ---- "Heads-up" warning shortly before an unlock ends (separate from the grace period after it ends) ----
+    private static final long WARN_MS = 5 * 60_000L;        // how long before the end the warning appears
+    private static final long WARN_BANNER_MS = 6_000L;      // how long the warning popup stays up
+    private View warnBanner;                                // the popup while showing (null otherwise)
+    // Which unlocks we already warned about: key ("shared" or an app package) -> the unlock_at value it was shown for.
+    private final Map<String, Long> warnedFor = new HashMap<>();
+    private final Runnable warn = this::checkWarn;          // fires WARN_MS before the end
+    private final Runnable hideWarn = this::removeWarnBanner;
 
     /** Called by Android when the user switches the service on (or the phone restarts it). */
     @Override
@@ -84,7 +94,7 @@ public class BlockerService extends AccessibilityService {
 
     /**
      * Runs on every window change. Decides what to do about the app that just came to the front:
-     *   - system UI, keyboard or StudyLock itself: ignore
+     *   - system UI, keyboard or Distraint itself: ignore
      *   - not a locked app: forget the current locked app and cancel any running countdown
      *   - locked app that still has time: remember it and schedule the end of its time (expiry)
      *   - locked app with no time left: show the lock screen (this also covers a screen change during the countdown)
@@ -95,11 +105,9 @@ public class BlockerService extends AccessibilityService {
         CharSequence p = event.getPackageName();
         if (p == null) return;
         String pkg = p.toString();
-        // Ignore our own windows, the notification shade and the keyboard: they are not "the app the user is in".
         if (isNoise(pkg)) return;
         if (overlay != null) return;                       // lock screen already showing
 
-        // A fresh StudyState reads the current saved values; rollover() applies the daily reset if it is due.
         StudyState state = new StudyState(this);
         state.rollover();
 
@@ -107,6 +115,8 @@ public class BlockerService extends AccessibilityService {
             // The user left the game: forget it and cancel any countdown.
             currentLocked = null;
             handler.removeCallbacks(expiry);
+            handler.removeCallbacks(warn);                 // NEW: cancel a pending warning
+            removeWarnBanner();                            // NEW: and hide one that is showing
             removeGrace();
             return;
         }
@@ -117,10 +127,13 @@ public class BlockerService extends AccessibilityService {
             currentLocked = pkg;
             handler.removeCallbacks(expiry);
             handler.postDelayed(expiry, left);
+            scheduleWarning(state, pkg, left);             // NEW: also schedule the heads-up
             return;
         }
 
         // Locked game and no unlock. This also covers "the screen changed during the countdown".
+        handler.removeCallbacks(warn);                     // NEW: no warning for a lock that is already on
+        removeWarnBanner();
         removeGrace();
         currentLocked = null;
         showOverlay(pkg, state);
@@ -260,7 +273,7 @@ public class BlockerService extends AccessibilityService {
             progressText = clock(total) + " / " + clock(goal);
         } else if (state.canUnlock()) {
             title = "You've earned it";
-            message = "Open StudyLock and unlock your apps.";
+            message = "Open Distraint and unlock your apps.";
         } else {
             title = "Not today";
             message = "Today's unlock has ended. Apps open again after the daily reset.";
@@ -332,6 +345,8 @@ public class BlockerService extends AccessibilityService {
         }
         handler.removeCallbacks(expiry);
         removeGrace();
+        handler.removeCallbacks(warn);
+        removeWarnBanner();
     }
     // Called when the service is switched off in Android's settings.
     @Override
@@ -365,6 +380,83 @@ public class BlockerService extends AccessibilityService {
             return;
         }
         startGrace();
+    }
+    /**
+     * Schedules the heads-up for a locked app that is open and still has time. Called on every window event of
+     * that app, so it first cancels any earlier schedule. Skipped when this unlock was already warned about, or
+     * when the whole unlock is no longer than the warning time (it would pop up the moment the app opens).
+     */
+    private void scheduleWarning(StudyState s, String pkg, long leftMs) {
+        handler.removeCallbacks(warn);
+        if (s.mode() == StudyState.MODE_TIMED && s.timedMin() * 60_000L <= WARN_MS) return;
+        Long done = warnedFor.get(warnKey(s, pkg));
+        if (done != null && done == s.unlockAt()) return;            // already warned for this unlock
+        handler.postDelayed(warn, Math.max(0, leftMs - WARN_MS));     // 0 = warn now (under 5 min left already)
+    }
+
+    /** Shared mode has one window for all apps, so one warning; per-app mode warns once per app. */
+    private String warnKey(StudyState s, String pkg) {
+        return s.perAppActive() ? pkg : "shared";
+    }
+
+    /**
+     * Fires WARN_MS before the end. Like checkExpiry(), it re-reads the remaining time first, because a
+     * timer can fire early after the phone sleeps. Only shows the popup if it is really time.
+     */
+    private void checkWarn() {
+        if (currentLocked == null || graceActive || overlay != null) return;
+        StudyState s = new StudyState(this);
+        s.rollover();
+        long left = s.msLeftFor(currentLocked);
+        if (left <= 0) return;                                        // already over: expiry handles it
+        if (left > WARN_MS + 1000) {                                  // too early: wait the difference
+            handler.postDelayed(warn, left - WARN_MS);
+            return;
+        }
+        warnedFor.put(warnKey(s, currentLocked), s.unlockAt());       // remember: only once per unlock
+        showWarnBanner(left);
+    }
+
+    /** Amber popup at the top: "N minutes left". Touches pass through, so the game stays usable. */
+    private void showWarnBanner(long leftMs) {
+        removeWarnBanner();
+        long mins = Math.round(leftMs / 60_000.0);
+        String title = mins >= 1
+                ? mins + (mins == 1 ? " minute left" : " minutes left")
+                : "Less than a minute left";
+
+        warnBanner = LayoutInflater.from(this).inflate(R.layout.overlay_warning, null);
+        ((TextView) warnBanner.findViewById(R.id.warnTitle)).setText(title);
+        ((TextView) warnBanner.findViewById(R.id.warnSub)).setText("before your unlock ends");
+
+        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT);
+        lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        float density = getResources().getDisplayMetrics().density;
+        lp.y = (int) (48 * density);
+        warnBanner.setAlpha(0f);
+        warnBanner.setTranslationY(-48 * density);
+        wm.addView(warnBanner, lp);
+        warnBanner.animate().alpha(1f).translationY(0f).setDuration(240).start();
+
+        handler.postDelayed(hideWarn, WARN_BANNER_MS);                // the popup removes itself
+    }
+
+    /** Fades the warning popup out. Clears the field first so other code treats it as gone at once. */
+    private void removeWarnBanner() {
+        handler.removeCallbacks(hideWarn);
+        View b = warnBanner;
+        if (b == null) return;
+        warnBanner = null;
+        b.animate().alpha(0f).setDuration(200).withEndAction(() -> {
+            try { wm.removeView(b); } catch (Exception ignored) { }
+        }).start();
     }
 
 

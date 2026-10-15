@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "StudyLock"
+rootProject.name = "Distraint"
 include(":app")
  

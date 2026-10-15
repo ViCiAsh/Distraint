@@ -3,13 +3,13 @@ plugins {
 }
 
 android {
-    namespace = "com.damweeb.studylock"
+    namespace = "com.damweeb.distraint"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.damweeb.studylock"
+        applicationId = "com.damweeb.distraint"
         minSdk = 26
         targetSdk = 37
         versionCode = 1

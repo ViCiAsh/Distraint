@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.StudyLock" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.Distraint" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/brand_primary</item>
         <item name="colorOnPrimary">@color/brand_on_primary</item>
         <item name="colorPrimaryContainer">@color/brand_primary_container</item>

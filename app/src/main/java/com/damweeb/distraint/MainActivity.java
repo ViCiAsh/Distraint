@@ -1,4 +1,4 @@
-package com.damweeb.studylock;
+package com.damweeb.distraint;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -293,19 +293,19 @@ public class MainActivity extends AppCompatActivity {
         studyCount.setText(String.valueOf(study.size()));
     }
 
-    /** True if StudyLock is an active device admin (what blocks uninstalling and clearing its data from App info). */
+    /** True if Distraint is an active device admin (what blocks uninstalling and clearing its data from App info). */
     private boolean isAdminActive() {
         DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
         return dpm.isAdminActive(new ComponentName(this, AdminReceiver.class));
     }
 
-    /** The system screen that asks the user to activate StudyLock as a device admin. */
+    /** The system screen that asks the user to activate Distraint as a device admin. */
     private Intent adminIntent() {
         Intent i = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
         i.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN,
                 new ComponentName(this, AdminReceiver.class));
         i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                "Stops StudyLock from being uninstalled with one tap.");
+                "Stops Distraint from being uninstalled with one tap.");
         return i;
     }
 
@@ -379,15 +379,15 @@ public class MainActivity extends AppCompatActivity {
                 case 0:
                     if (isBlockerEnabled()) continue;
                     title = "Accessibility";
-                    message = "StudyLock uses this to notice when a locked game opens. "
-                            + "On the next screen, find StudyLock and turn it on.";
+                    message = "Distraint uses this to notice when a locked game opens. "
+                            + "On the next screen, find Distraint and turn it on.";
                     intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
                     break;
                 case 1:
                     if (state.hasUsageAccess()) continue;
                     title = "Usage access";
-                    message = "This lets StudyLock count the time you spend in your study apps. "
-                            + "Find StudyLock in the list and allow it.";
+                    message = "This lets Distraint count the time you spend in your study apps. "
+                            + "Find Distraint in the list and allow it.";
                     intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
                     break;
                 case 2:
@@ -401,7 +401,7 @@ public class MainActivity extends AppCompatActivity {
                 default:
                     if (isAdminActive()) continue;
                     title = "Uninstall protection";
-                    message = "This makes StudyLock harder to remove on an impulse.";
+                    message = "This makes Distraint harder to remove on an impulse.";
                     intent = adminIntent();
                     break;
             }
@@ -415,7 +415,7 @@ public class MainActivity extends AppCompatActivity {
         asking = true;
         new MaterialAlertDialogBuilder(this)
                 .setTitle("Notifications")
-                .setMessage("StudyLock shows a countdown in your notifications when your unlock time is about to run out.")
+                .setMessage("Distraint shows a countdown in your notifications when your unlock time is about to run out.")
                 .setCancelable(false)
                 .setPositiveButton("Continue", (d, w) -> {
                     asking = false;
@@ -621,7 +621,7 @@ public class MainActivity extends AppCompatActivity {
             banner.setText("Blocker is off. Your games are NOT locked. Tap to fix.");
             banner.setVisibility(View.VISIBLE);
         } else if (!BlockerService.isRunning()) {
-            banner.setText("Blocker isn't running. Tap, then switch StudyLock off and on.");
+            banner.setText("Blocker isn't running. Tap, then switch Distraint off and on.");
             banner.setVisibility(View.VISIBLE);
         } else {
             banner.setVisibility(View.GONE);
