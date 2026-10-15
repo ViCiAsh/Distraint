@@ -38,8 +38,8 @@ No willpower required: if you want to scroll, you have to earn it first.
 ## Screenshots
 
 <p float="left">
-  <img src="screenshots/home.png" width="240" />
-  <img src="screenshots/locked.png" width="240" />
+  <img src="screenshots/home.jpg" width="240" />
+  <img src="screenshots/locked.jpg" width="240" />
 </p>
 
 
@@ -48,7 +48,7 @@ No willpower required: if you want to scroll, you have to earn it first.
 ### Download the APK
 
 1. Go to the [Releases](https://github.com/ViCiAsh/Distraint-/releases) page.
-2. Download the latest `app-release.apk`.
+2. Download the latest apk.
 3. Open it on your phone. If asked, allow **Install unknown apps** for your browser or file manager.
 4. Follow the onboarding screens to grant the permissions the app needs.
 
