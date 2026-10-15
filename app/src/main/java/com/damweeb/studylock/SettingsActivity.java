@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 public class SettingsActivity extends AppCompatActivity {
     private StudyState state;
     private EditText requiredEdit, unlockEdit, resetEdit;
+    private RadioGroup combineGroup;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -38,6 +39,9 @@ public class SettingsActivity extends AppCompatActivity {
             state.setThemeMode(m);
             AppCompatDelegate.setDefaultNightMode(m);
         });
+        combineGroup = findViewById(R.id.combineGroup);
+        combineGroup.check(state.shown("combine") == StudyState.COMBINE_INDIVIDUAL
+                ? R.id.combineEach : R.id.combineTotal);
     }
     private int shownUnlockMin() {
         return state.shown("mode") == StudyState.MODE_REST_OF_DAY ? 0 : state.shown("timed_min");
@@ -58,12 +62,11 @@ public class SettingsActivity extends AppCompatActivity {
         state.setPending("required_min", read(requiredEdit, state.shown("required_min"), 1, 600));
 
         int unlock = read(unlockEdit, shownUnlockMin(), 0, 1440);
-        if (unlock == 0) {
-            state.setPending("mode", StudyState.MODE_REST_OF_DAY);
-        } else {
-            state.setPending("mode", StudyState.MODE_TIMED);
-            state.setPending("timed_min", unlock);
-        }
+        state.setUnlockMinutes(unlock);
+
+        state.setPending("combine",
+                combineGroup.getCheckedRadioButtonId() == R.id.combineEach
+                        ? StudyState.COMBINE_INDIVIDUAL : StudyState.COMBINE_TOTAL);
 
         state.setPending("rollover_hour", read(resetEdit, state.shown("rollover_hour"), 0, 23));
     }

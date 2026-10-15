@@ -12,9 +12,12 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
+import android.text.InputType;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ListView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
@@ -25,9 +28,12 @@ import androidx.appcompat.app.AlertDialog;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.IntConsumer;
 
 public class MainActivity extends AppCompatActivity {
     private ListView lockedList, studyAppList;
@@ -141,10 +147,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadLists() {
+        Map<String, Long> usage = state.appSeconds();
+
         List<String> locked = new ArrayList<>(state.blocked());
         Collections.sort(locked);
         lockedList.setAdapter(new AppAdapter(this, locked,
-                state.pendingRemovals(), " · unlocks at next reset"));
+                state.pendingRemovals(), " · unlocks at next reset",
+                usage, new HashSet<>()));
 
         Set<String> pendingAdds = state.pendingStudyAdds();
         Set<String> studyPkgs = state.studyApps();
@@ -152,7 +161,8 @@ public class MainActivity extends AppCompatActivity {
         List<String> study = new ArrayList<>(studyPkgs);
         Collections.sort(study);
         studyAppList.setAdapter(new AppAdapter(this, study,
-                pendingAdds, " · from from next reset"));
+                pendingAdds, " · from next reset",
+                usage, pendingAdds));
     }
 
     private boolean isAdminActive() {
@@ -178,10 +188,31 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("BatteryLife")
     private void runOnboarding() {
         if (asking) return;                          // a dialog is already on screen
-        while (state.onboardStep() < 4) {
+        while (state.onboardStep() < 7) {
             int step = state.onboardStep();
-            state.setOnboardStep(step + 1);          // remember we asked, even if skipped
-
+            state.setOnboardStep(step + 1); // remember we asked, even if skipped
+            if (step == 4) {
+                if (state.combineChosen()) continue;      // already decided, nothing to ask
+                askCombineMode();
+                return;
+            }
+            if (step == 5) {
+                if (state.requiredChosen()) continue;
+                askNumber("Daily study time",
+                        "How many minutes do you need to study each day before your locked apps unlock?",
+                        state.requiredMin(), 1, 600,
+                        minutes -> state.chooseRequiredFirstTime(minutes));
+                return;
+            }
+            if (step == 6) {
+                if (state.unlockChosen()) continue;
+                askNumber("Unlock length",
+                        "After you've studied enough, for how many minutes should your locked apps stay open? "
+                                + "Enter 0 to keep them open until the daily reset.",
+                        state.unlockMinutes(), 0, 1440,
+                        minutes -> state.chooseUnlockFirstTime(minutes));
+                return;
+            }
             String title, message;
             Intent intent;
             switch (step) {
@@ -218,6 +249,28 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void askCombineMode() {
+        asking = true;
+        String[] options = {
+                "Combined: time adds up across all study apps",
+                "Individual: every study app needs the full time"
+        };
+        final int[] picked = {StudyState.COMBINE_TOTAL};
+
+        new AlertDialog.Builder(this)
+                .setTitle("How should study apps count?")
+                .setSingleChoiceItems(options, 0, (d, which) -> picked[0] = which)
+                .setCancelable(false)
+                .setPositiveButton("Confirm", (d, w) -> {
+                    asking = false;
+                    state.chooseCombineFirstTime(picked[0] == 1
+                            ? StudyState.COMBINE_INDIVIDUAL : StudyState.COMBINE_TOTAL);
+                    refresh();
+                    runOnboarding();            // <- new: go on to the next question
+                })
+                .show();
+    }
+
     private void askFor(String title, String message, Intent intent) {
         asking = true;
         new AlertDialog.Builder(this)
@@ -252,6 +305,38 @@ public class MainActivity extends AppCompatActivity {
         return enabled != null && enabled.contains(getPackageName() + "/");
     }
 
+    private void askNumber(String title, String message, int initial,
+                           int min, int max, IntConsumer onChosen) {
+        asking = true;
+
+        EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setText(String.valueOf(initial));
+        input.setSelectAllOnFocus(true);
+
+        FrameLayout box = new FrameLayout(this);
+        int pad = (int) (24 * getResources().getDisplayMetrics().density);
+        box.setPadding(pad, 0, pad, 0);
+        box.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setView(box)
+                .setCancelable(false)
+                .setPositiveButton("Confirm", (d, w) -> {
+                    int v = initial;
+                    try {
+                        v = Integer.parseInt(input.getText().toString().trim());
+                    } catch (NumberFormatException ignored) { }
+                    asking = false;
+                    onChosen.accept(Math.max(min, Math.min(max, v)));
+                    refresh();
+                    runOnboarding();                 // carry on to the next question
+                })
+                .show();
+    }
+
     private void refresh() {
         state.rollover();
         long s = state.totalStudiedSec();
@@ -260,7 +345,14 @@ public class MainActivity extends AppCompatActivity {
         String status;
         if (state.isUnlocked()) status = "Apps are unlocked.";
         else if (state.canUnlock()) status = "Goal reached. You can unlock your apps.";
-        else status = String.format(Locale.US, "Study %d min today to unlock apps.", state.requiredMin());
+        else {
+            boolean each = state.combineMode() == StudyState.COMBINE_INDIVIDUAL
+                    && !state.studyApps().isEmpty();
+            status = String.format(Locale.US,
+                    each ? "Study %d min in each study app to unlock games."
+                            : "Study %d min today to unlock games.",
+                    state.requiredMin());
+        }
         statusText.setText(status);
         unlockButton.setEnabled(state.canUnlock());
     }

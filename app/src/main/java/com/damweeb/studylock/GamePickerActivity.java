@@ -44,8 +44,10 @@ public class GamePickerActivity extends AppCompatActivity {
 
         TextView hint = new TextView(this);
         hint.setText(studyMode
-                ? "Removed apps stop counting now. New apps count from next reset."
-                : "New apps lock now. Unticked apps unlock at next reset.");
+                ? (state.studySetupDone()
+                   ? "Removed apps stop counting now. New apps count from the next reset."
+                   : "Your first study apps count right away. Later additions wait for the next reset.")
+                : "New apps lock now. Unticked apps unlock at the next reset.");
         hint.setPadding(48, 0, 48, 24);
 
         LinearLayout root = new LinearLayout(this);
