@@ -12,6 +12,8 @@ public class SettingsActivity extends AppCompatActivity {
     private EditText requiredEdit, unlockEdit, resetEdit;
     private RadioGroup combineGroup;
 
+    private RadioGroup limitGroup;
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -26,6 +28,9 @@ public class SettingsActivity extends AppCompatActivity {
         requiredEdit.setText(String.valueOf(state.shown("required_min")));
         unlockEdit.setText(String.valueOf(shownUnlockMin()));
         resetEdit.setText(String.valueOf(state.shown("rollover_hour")));
+        limitGroup = findViewById(R.id.limitGroup);
+        limitGroup.check(state.shown("limit_style") == StudyState.LIMIT_PER_APP
+                ? R.id.limitEach : R.id.limitShared);
 
         RadioGroup themeGroup = findViewById(R.id.themeGroup);
         int mode = state.themeMode();
@@ -69,5 +74,8 @@ public class SettingsActivity extends AppCompatActivity {
                         ? StudyState.COMBINE_INDIVIDUAL : StudyState.COMBINE_TOTAL);
 
         state.setPending("rollover_hour", read(resetEdit, state.shown("rollover_hour"), 0, 23));
+        state.setPending("limit_style",
+                limitGroup.getCheckedRadioButtonId() == R.id.limitEach
+                        ? StudyState.LIMIT_PER_APP : StudyState.LIMIT_SHARED);
     }
 }

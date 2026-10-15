@@ -1,11 +1,14 @@
 package com.damweeb.studylock;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -91,6 +94,8 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.settingsButton).setOnClickListener(v ->
                 startActivity(new Intent(this, SettingsActivity.class)));
         findViewById(R.id.adminButton).setOnClickListener(v -> requestAdmin());
+        findViewById(R.id.warningBanner).setOnClickListener(v ->
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
 
         lockedList = findViewById(R.id.lockedList);
         studyAppList = findViewById(R.id.studyList);
@@ -122,6 +127,8 @@ public class MainActivity extends AppCompatActivity {
         loadLists();
         runOnboarding();
         updatePermissionButtons();
+        updateBlockerWarning();
+        handler.postDelayed(this::updateBlockerWarning, 2000);
         refresh();
     }
 
@@ -188,15 +195,22 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("BatteryLife")
     private void runOnboarding() {
         if (asking) return;                          // a dialog is already on screen
-        while (state.onboardStep() < 7) {
+        while (state.onboardStep() < 9) {
             int step = state.onboardStep();
             state.setOnboardStep(step + 1); // remember we asked, even if skipped
             if (step == 4) {
+                if (Build.VERSION.SDK_INT < 33
+                        || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        == PackageManager.PERMISSION_GRANTED) continue;
+                askNotifications();
+                return;
+            }
+            if (step == 5) {
                 if (state.combineChosen()) continue;      // already decided, nothing to ask
                 askCombineMode();
                 return;
             }
-            if (step == 5) {
+            if (step == 6) {
                 if (state.requiredChosen()) continue;
                 askNumber("Daily study time",
                         "How many minutes do you need to study each day before your locked apps unlock?",
@@ -204,7 +218,12 @@ public class MainActivity extends AppCompatActivity {
                         minutes -> state.chooseRequiredFirstTime(minutes));
                 return;
             }
-            if (step == 6) {
+            if (step == 7) {
+                if (state.limitChosen()) continue;
+                askLimitStyle();
+                return;
+            }
+            if (step == 8) {
                 if (state.unlockChosen()) continue;
                 askNumber("Unlock length",
                         "After you've studied enough, for how many minutes should your locked apps stay open? "
@@ -213,6 +232,7 @@ public class MainActivity extends AppCompatActivity {
                         minutes -> state.chooseUnlockFirstTime(minutes));
                 return;
             }
+
             String title, message;
             Intent intent;
             switch (step) {
@@ -247,6 +267,50 @@ public class MainActivity extends AppCompatActivity {
             askFor(title, message, intent);
             return;
         }
+    }
+
+    private void askNotifications() {
+        asking = true;
+        new AlertDialog.Builder(this)
+                .setTitle("Notifications")
+                .setMessage("StudyLock shows a countdown in your notifications when your unlock time is about to run out.")
+                .setCancelable(false)
+                .setPositiveButton("Continue", (d, w) -> {
+                    asking = false;
+                    requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 100);
+                })
+                .setNegativeButton("Skip", (d, w) -> {
+                    asking = false;
+                    runOnboarding();
+                })
+                .show();
+    }
+
+    private void askLimitStyle() {
+        asking = true;
+        String[] options = {
+                "Shared: one timer for all locked apps",
+                "Individual: each locked app gets its own time"
+        };
+        final int[] picked = {0};
+
+        new AlertDialog.Builder(this)
+                .setTitle("How should unlock time count?")
+                .setSingleChoiceItems(options, 0, (d, which) -> picked[0] = which)
+                .setCancelable(false)
+                .setPositiveButton("Confirm", (d, w) -> {
+                    asking = false;
+                    state.chooseLimitFirstTime(picked[0] == 1
+                            ? StudyState.LIMIT_PER_APP : StudyState.LIMIT_SHARED);
+                    runOnboarding();
+                })
+                .show();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        super.onRequestPermissionsResult(code, perms, results);
+        runOnboarding();
     }
 
     private void askCombineMode() {
@@ -359,5 +423,24 @@ public class MainActivity extends AppCompatActivity {
         }
         statusText.setText(status);
         unlockButton.setEnabled(state.canUnlock());
+    }
+    private void updateBlockerWarning() {
+        TextView banner = findViewById(R.id.warningBanner);
+
+        // Nothing to protect yet, so no need to alarm anyone during first setup.
+        if (state.blocked().isEmpty()) {
+            banner.setVisibility(View.GONE);
+            return;
+        }
+
+        if (!isBlockerEnabled()) {
+            banner.setText("Blocker is off. Your games are NOT locked. Tap to fix.");
+            banner.setVisibility(View.VISIBLE);
+        } else if (!BlockerService.isRunning()) {
+            banner.setText("Blocker isn't running. Tap, then switch StudyLock off and on.");
+            banner.setVisibility(View.VISIBLE);
+        } else {
+            banner.setVisibility(View.GONE);
+        }
     }
 }

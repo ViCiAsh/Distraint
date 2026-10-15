@@ -38,7 +38,16 @@
                 android:src="@drawable/ic_settings" />
         </LinearLayout>
 
-        <!-- TOP HALF: timer, status, buttons -->
+        <TextView
+            android:id="@+id/warningBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#C62828"
+            android:gravity="center"
+            android:padding="12dp"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:visibility="gone" />
         <!-- TOP HALF: timer, status, buttons -->
         <ScrollView
             android:layout_width="match_parent"

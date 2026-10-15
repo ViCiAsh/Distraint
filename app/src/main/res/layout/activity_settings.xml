@@ -66,6 +66,27 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="How unlock time is counted" />
+
+        <RadioGroup
+            android:id="@+id/limitGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <RadioButton android:id="@+id/limitShared"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Shared: one timer for all locked apps" />
+            <RadioButton android:id="@+id/limitEach"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Individual: each locked app gets its own time, counted only while you're in it" />
+        </RadioGroup>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
             android:text="Required study time (minutes)" />
 

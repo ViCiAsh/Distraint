@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -24,6 +25,9 @@ public class StudyState {
 
     public static final int COMBINE_TOTAL = 0;
     public static final int COMBINE_INDIVIDUAL = 1;
+
+    public static final int LIMIT_SHARED = 0;
+    public static final int LIMIT_PER_APP = 1;
 
     private static final Set<String> DEFAULT_BLOCKED = new HashSet<>();
 
@@ -69,7 +73,7 @@ public class StudyState {
         int oldHour = rolloverHour();
         int newHour = oldHour;
         SharedPreferences.Editor e = p.edit();
-        for (String k : new String[]{"required_min", "mode", "timed_min", "rollover_hour", "combine"}) {
+        for (String k : new String[]{"required_min", "mode", "timed_min", "rollover_hour", "combine", "limit_style"}) {
             if (p.contains("pending_" + k)) {
                 int v = p.getInt("pending_" + k, 0);
                 e.putInt(k, v).remove("pending_" + k);
@@ -88,6 +92,7 @@ public class StudyState {
                 .putLong("reset_at", nextBoundary(now, newHour))
                 .putLong("studied_sec", 0)
                 .putLong("unlocked_until", 0)
+                .putLong("unlock_at", 0)
                 .putBoolean("unlock_used", false)
                 .apply();
 
@@ -109,6 +114,7 @@ public class StudyState {
             case "mode":         return mode();
             case "timed_min":    return timedMin();
             case "combine":      return combineMode();
+            case "limit_style":  return limitStyle();
             default:             return rolloverHour();   // "rollover_hour"
         }
     }
@@ -126,6 +132,10 @@ public class StudyState {
             chooseRequiredFirstTime(value);
             return;
         }
+        if (key.equals("limit_style") && !limitChosen() && value != limitStyle()) {
+            chooseLimitFirstTime(value);
+            return;
+        }
     }
 
     /** What the settings screen shows: the queued value if any, else the live one. */
@@ -134,10 +144,32 @@ public class StudyState {
     }
 
     public boolean anyPending() {
-        for (String k : new String[]{"required_min", "mode", "timed_min", "rollover_hour", "combine"}) {
+        for (String k : new String[]{"required_min", "mode", "timed_min", "rollover_hour", "combine", "limit_style"}) {
             if (p.contains("pending_" + k)) return true;
         }
         return false;
+    }
+
+    /** True when each locked app gets its own minutes. */
+    public boolean perAppActive() {
+        return limitStyle() == LIMIT_PER_APP && mode() == MODE_TIMED;
+    }
+
+    private long usedMsSinceUnlock(String pkg) {
+        long from = p.getLong("unlock_at", 0);
+        if (from == 0) return 0;
+        return foregroundMs(Collections.singleton(pkg), from).getOrDefault(pkg, 0L);
+    }
+
+
+    /** Milliseconds this locked app may still be used right now. Zero or less means locked. */
+    public long msLeftFor(String pkg) {
+        long window = unlockedUntil() - System.currentTimeMillis();
+        if (window <= 0) return 0;
+        if (!perAppActive()) return window;
+        if (!hasUsageAccess()) return 0;              // can't measure, so stay locked
+        long left = timedMin() * 60_000L - usedMsSinceUnlock(pkg);
+        return Math.min(window, left);
     }
 
     // Theme applies immediately, so it is not queued.
@@ -238,31 +270,39 @@ public class StudyState {
     }
 
     /** Seconds spent in each study app since today's reset, read from Android's usage log. */
-    private Map<String, Long> computeAppSecByPackage() {
+    /** Milliseconds each of `pkgs` spent in the foreground between `from` and now. */
+    private Map<String, Long> foregroundMs(Set<String> pkgs, long from) {
         Map<String, Long> result = new HashMap<>();
-        Set<String> study = studyApps();
-        if (study.isEmpty() || !hasUsageAccess()) return result;
+        if (pkgs.isEmpty() || !hasUsageAccess()) return result;
 
         UsageStatsManager usm = (UsageStatsManager) ctx.getSystemService(Context.USAGE_STATS_SERVICE);
         long end = System.currentTimeMillis();
-        UsageEvents events = usm.queryEvents(p.getLong("day_start", end), end);
+        UsageEvents events = usm.queryEvents(from, end);
         UsageEvents.Event e = new UsageEvents.Event();
         Map<String, Long> cameToFront = new HashMap<>();
 
         while (events.hasNextEvent()) {
             events.getNextEvent(e);
             String pkg = e.getPackageName();
-            if (!study.contains(pkg)) continue;
+            if (!pkgs.contains(pkg)) continue;
             if (e.getEventType() == UsageEvents.Event.MOVE_TO_FOREGROUND) {
                 cameToFront.put(pkg, e.getTimeStamp());
             } else if (e.getEventType() == UsageEvents.Event.MOVE_TO_BACKGROUND) {
-                Long from = cameToFront.remove(pkg);
-                if (from != null) result.merge(pkg, e.getTimeStamp() - from, Long::sum);
+                Long f = cameToFront.remove(pkg);
+                if (f != null) result.merge(pkg, e.getTimeStamp() - f, Long::sum);
             }
         }
         for (Map.Entry<String, Long> en : cameToFront.entrySet()) {
             result.merge(en.getKey(), end - en.getValue(), Long::sum);   // still open right now
         }
+        return result;
+    }
+
+    /** Seconds per tracked app (study and locked) since today's reset. */
+    private Map<String, Long> computeAppSecByPackage() {
+        Set<String> tracked = studyApps();
+        tracked.addAll(blocked());
+        Map<String, Long> result = foregroundMs(tracked, p.getLong("day_start", System.currentTimeMillis()));
         for (Map.Entry<String, Long> en : result.entrySet()) {
             en.setValue(en.getValue() / 1000);                           // milliseconds to seconds
         }
@@ -281,8 +321,11 @@ public class StudyState {
 
     /** Total seconds across all study apps. */
     public long appStudySec() {
+        Map<String, Long> byApp = appSecByPackage();
         long sum = 0;
-        for (long s : appSecByPackage().values()) sum += s;
+        for (String pkg : studyApps()) {
+            sum += byApp.getOrDefault(pkg, 0L);
+        }
         return sum;
     }
 
@@ -335,10 +378,14 @@ public class StudyState {
     }
 
     public void unlock() {
-        long until = (mode() == MODE_REST_OF_DAY)
-                ? p.getLong("reset_at", 0)
-                : System.currentTimeMillis() + timedMin() * 60_000L;
-        p.edit().putLong("unlocked_until", until).putBoolean("unlock_used", true).apply();
+        long now = System.currentTimeMillis();
+        boolean sharedWindow = mode() == MODE_TIMED && limitStyle() == LIMIT_SHARED;
+        long until = sharedWindow ? now + timedMin() * 60_000L : p.getLong("reset_at", 0);
+        p.edit()
+                .putLong("unlocked_until", until)
+                .putLong("unlock_at", now)
+                .putBoolean("unlock_used", true)
+                .apply();
     }
 
     public boolean isUnlocked() {
@@ -394,4 +441,17 @@ public class StudyState {
         setPending("mode", minutes == 0 ? MODE_REST_OF_DAY : MODE_TIMED);
         if (minutes > 0) setPending("timed_min", minutes);
     }
+
+    public int limitStyle() { return p.getInt("limit_style", LIMIT_SHARED); }
+    public boolean limitChosen() { return p.getBoolean("limit_chosen", false); }
+
+    public void chooseLimitFirstTime(int style) {
+        p.edit()
+                .putInt("limit_style", style)
+                .remove("pending_limit_style")
+                .putBoolean("limit_chosen", true)
+                .apply();
+    }
+
+    public long unlockedUntil() { return p.getLong("unlocked_until", 0); }
 }
