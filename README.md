@@ -31,7 +31,6 @@ No willpower required: if you want to scroll, you have to earn it first.
 - Countdown notification before your unlock time runs out
 - Guided onboarding that explains each permission before asking for it
 
-<!-- Add or remove items above to match what your app actually does. -->
 
 ## Screenshots
 
@@ -79,15 +78,15 @@ Distraint needs a few permissions to work. Nothing is requested without an expla
 
 | Permission | Why it's needed |
 | --- | --- |
+| Accessibility | Blocks the apps and gets access to them |
 | Notifications (Android 13+) | Shows the countdown when your unlock time is about to run out |
 | Device admin | Helps keep the lock in place so it can't be bypassed easily |
+| Usage access | Gets access of the app usage to keep track of it |
 
-<!-- Check this table against your AndroidManifest.xml and add any other permissions the app uses,
-such as usage access, display over other apps, or accessibility. -->
-
+Android 13+ devices might need to allow restricted settings first in order to be able to give the above mentioned permissions. You can find it by simply going to the app info of Distraint and tapping the 3 dot on the right corner. 
 ## Privacy
 
-Distraint is built to run on your device. <!-- Edit this if the app sends any data anywhere. -->
+Distraint is built to run on your device.
 It does not require an account.
 
 ## Tech stack
