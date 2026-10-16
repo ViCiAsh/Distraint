@@ -47,7 +47,7 @@ No willpower required: if you want to scroll, you have to earn it first.
 
 ### Download the APK
 
-1. Go to the [Releases](https://github.com/ViCiAsh/Distraint-/releases) page.
+1. Go to the [Releases](https://github.com/ViCiAsh/Distraint/releases) page.
 2. Download the latest apk.
 3. Open it on your phone. If asked, allow **Install unknown apps** for your browser or file manager.
 4. Follow the onboarding screens to grant the permissions the app needs.
@@ -99,7 +99,7 @@ It does not require an account.
 
 ## Contributing
 
-Bug reports and ideas are welcome. Open an [issue](https://github.com/ViCiAsh/Distraint-/issues), or fork the repo and send a pull request.
+Bug reports and ideas are welcome. Open an [issue](https://github.com/ViCiAsh/Distraint/issues), or fork the repo and send a pull request.
 
 ## License
 
