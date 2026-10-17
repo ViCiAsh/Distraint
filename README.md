@@ -30,9 +30,9 @@ No willpower required: if you want to scroll, you have to earn it first.
 - Unlock time that you earn by focusing
 - Countdown notification before your unlock time runs out
 - Guided onboarding that explains each permission before asking for it
+- Strict Lock mode that locks the apps for certain periods of time.
 
 
-## Screenshots
 
 ## Screenshots
 
