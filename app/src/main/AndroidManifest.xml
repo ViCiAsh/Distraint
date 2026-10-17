@@ -17,6 +17,7 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="Distraint"
+        android:allowBackup="true"
         android:theme="@style/Theme.Distraint">
 
 
@@ -31,6 +32,7 @@
         </activity>
         <activity android:name=".GamePickerActivity" />
         <activity android:name=".SettingsActivity" />
+        <activity android:name=".StrictLockActivity" />
 
         <service
             android:name=".BlockerService"

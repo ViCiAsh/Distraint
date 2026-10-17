@@ -23,6 +23,11 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -110,6 +115,29 @@ public class BlockerService extends AccessibilityService {
 
         StudyState state = new StudyState(this);
         state.rollover();
+
+        // STRICT LOCK comes first and ignores study progress and unlocks completely.
+        handler.removeCallbacks(strictCheck);
+        currentStrictPkg = null;
+        if (state.isStrictLocked(pkg)) {
+            currentLocked = null;                          // drop any unlock bookkeeping for this app
+            handler.removeCallbacks(expiry);
+            handler.removeCallbacks(warn);
+            removeWarnBanner();
+            removeGrace();
+            showStrictOverlay(pkg, state);
+            return;
+        }
+        // A strict app is open but no lock is on yet: if a daily window starts while it stays open,
+        // no window event would fire by itself, so schedule a re-check for the start (plus half a second
+        // so the clock minute has certainly changed). This does not return: the normal rules still apply.
+        if (state.strictApps().contains(pkg)) {
+            long untilStart = state.msUntilNextStrictStart();
+            if (untilStart >= 0) {
+                currentStrictPkg = pkg;
+                handler.postDelayed(strictCheck, untilStart + 500);
+            }
+        }
 
         if (!state.blocked().contains(pkg)) {
             // The user left the game: forget it and cancel any countdown.
@@ -281,6 +309,53 @@ public class BlockerService extends AccessibilityService {
         showMessage(icon, label + " is locked", title, message, progress, progressText);
     }
 
+    /** Lock screen for a strictly locked app: says when the lock ends and that studying will not open it. */
+    private void showStrictOverlay(String pkg, StudyState state) {
+        PackageManager pm = getPackageManager();
+        String label = pkg;
+        Drawable icon = null;
+        try {
+            ApplicationInfo info = pm.getApplicationInfo(pkg, 0);
+            label = pm.getApplicationLabel(info).toString();
+            icon = pm.getApplicationIcon(info);
+        } catch (Exception e) {
+            // keep the raw package name and no icon
+        }
+
+        long end = state.strictEndsAt();
+        String message;
+        if (end > System.currentTimeMillis()) {
+            ZonedDateTime endZ = Instant.ofEpochMilli(end).atZone(ZoneId.systemDefault());
+            boolean today = endZ.toLocalDate().equals(LocalDate.now());
+            String when = DateTimeFormatter
+                    .ofPattern(today ? "HH:mm" : "EEE HH:mm", Locale.getDefault()).format(endZ);
+            message = "This app can't be opened until " + when + ". Studying won't unlock it.";
+        } else {
+            message = "This app is locked right now.";     // the lock ended a moment ago
+        }
+        showMessage(icon, label + " is locked", "Strict lock", message, -1, null);
+    }
+
+    /** Fires when a daily window should have started while a strict app was open. Re-checks first, like checkExpiry(). */
+    private void checkStrict() {
+        String pkg = currentStrictPkg;
+        if (pkg == null || overlay != null) return;
+        StudyState s = new StudyState(this);
+        s.rollover();
+        if (s.isStrictLocked(pkg)) {
+            currentStrictPkg = null;
+            currentLocked = null;
+            handler.removeCallbacks(expiry);
+            handler.removeCallbacks(warn);
+            removeWarnBanner();
+            removeGrace();
+            showStrictOverlay(pkg, s);
+        } else {
+            long next = s.msUntilNextStrictStart();        // fired early: wait for the real start
+            if (next >= 0) handler.postDelayed(strictCheck, next + 500);
+        }
+    }
+
     /** Builds and shows the full-screen lock overlay. progress < 0 hides the progress bar. Closes itself after 2 s. */
     private void showMessage(Drawable icon, String appLine, String title, String message,
                              int progress, String progressText) {
@@ -344,6 +419,7 @@ public class BlockerService extends AccessibilityService {
             overlay = null;
         }
         handler.removeCallbacks(expiry);
+        handler.removeCallbacks(strictCheck);
         removeGrace();
         handler.removeCallbacks(warn);
         removeWarnBanner();
@@ -368,6 +444,11 @@ public class BlockerService extends AccessibilityService {
 
     // Fires when the current locked app's time should be over; checkExpiry() double-checks before locking.
     private final Runnable expiry = this::checkExpiry;
+
+    // Strict lock: a strict app that is open right now while no lock is active yet (null otherwise),
+    // and the timer that re-checks it when the next daily window begins.
+    private String currentStrictPkg;
+    private final Runnable strictCheck = this::checkStrict;
 
     /** Re-checks the app's remaining time (timers can fire early after the phone sleeps); starts the grace period only if time is truly up. */
     private void checkExpiry() {

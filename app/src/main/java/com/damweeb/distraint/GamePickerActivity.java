@@ -42,13 +42,14 @@ public class GamePickerActivity extends AppCompatActivity {
     private final List<String> packages = new ArrayList<>();
     private ListView list;
     private StudyState state;
+    private boolean strictMode;
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         state = new StudyState(this);
         studyMode = getIntent().getBooleanExtra("study", false);
-
+        strictMode = getIntent().getBooleanExtra("strict", false);
         // The screen is built in code: a title, a hint about when changes apply, and a multi-choice list.
         list = new ListView(this);
         list.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
@@ -56,7 +57,7 @@ public class GamePickerActivity extends AppCompatActivity {
         title.setText(studyMode ? "Study apps" : "Apps to lock");
         title.setTextSize(24);
         title.setPadding(48, 48, 48, 8);
-
+        title.setText(strictMode ? "Strict lock apps" : studyMode ? "Study apps" : "Apps to lock");
         TextView hint = new TextView(this);
         hint.setText(studyMode
                 ? (state.studySetupDone()
@@ -64,7 +65,13 @@ public class GamePickerActivity extends AppCompatActivity {
                    : "Your first study apps count right away. Later additions wait for the next reset.")
                 : "New apps lock now. Unticked apps unlock at the next reset.");
         hint.setPadding(48, 0, 48, 24);
-
+        hint.setText(strictMode
+                ? "New apps are strictly locked now. Removing one waits for a reset, and isn't possible while a strict lock is active."
+                : studyMode
+                  ? (state.studySetupDone()
+                     ? "Removed apps stop counting now. New apps count from the next reset."
+                     : "Your first study apps count right away. Later additions wait for the next reset.")
+                  : "New apps lock now. Unticked apps unlock at the next reset.");
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setFitsSystemWindows(true);
@@ -108,11 +115,14 @@ public class GamePickerActivity extends AppCompatActivity {
         });
 
         // Pre-tick the current choices. Queued study apps count as ticked (what the user chose last time);
-        // locked apps queued for removal count as unticked.
+        // locked apps queued for removal count as untick.
         Set<String> ticked0;
-        if (studyMode) {
+        if (strictMode) {
+            ticked0 = state.strictApps();
+            ticked0.removeAll(state.pendingStrictAppRemovals());
+        } else if (studyMode) {
             ticked0 = state.studyApps();
-            ticked0.addAll(state.pendingStudyAdds());   // show queued choices as ticked
+            ticked0.addAll(state.pendingStudyAdds());
         } else {
             ticked0 = state.blocked();
             ticked0.removeAll(state.pendingRemovals());
@@ -131,7 +141,8 @@ public class GamePickerActivity extends AppCompatActivity {
         for (int i = 0; i < packages.size(); i++) {
             if (ticked.get(i)) chosen.add(packages.get(i));
         }
-        if (studyMode) state.saveStudyApps(chosen);
+        if (strictMode) state.saveStrictApps(chosen);
+        else if (studyMode) state.saveStudyApps(chosen);
         else state.saveBlocked(chosen);
     }
 }

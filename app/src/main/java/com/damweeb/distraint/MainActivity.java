@@ -31,6 +31,11 @@ import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,7 +65,7 @@ import java.util.function.IntConsumer;
  */
 public class MainActivity extends AppCompatActivity {
     // ---- Views (looked up once in onCreate) ----
-    private ListView lockedList, studyAppList;
+    private ListView lockedList, studyAppList, strictAppList;
     private StudyState state;
     private TextView timerText, statusText;
     private Button toggleButton, unlockButton;
@@ -75,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
     // studying: the in-app timer is running. lastTick: elapsedRealtime when the last whole second was counted.
     private boolean studying;
     private long lastTick;
-    private TextView lockedCount, studyCount;
+    private TextView lockedCount, studyCount, strictCount;
 
     /**
      * The study timer loop: every 200 ms it adds the whole seconds elapsed since lastTick to today's study
@@ -130,8 +135,14 @@ public class MainActivity extends AppCompatActivity {
             PopupMenu menu = new PopupMenu(this, v);
             menu.getMenu().add(0, 0, 0, "Apps to lock");
             menu.getMenu().add(0, 1, 1, "Study apps");
+            menu.getMenu().add(0, 2, 2, "Strict lock");
             menu.setOnMenuItemClickListener(item -> {
+                if (item.getItemId() == 2) {
+                    startActivity(new Intent(this, StrictLockActivity.class));
+                    return true;
+                }
                 Intent i = new Intent(this, GamePickerActivity.class);
+                i.putExtra("strict", false);   // optional; the default is already false
                 i.putExtra("study", item.getItemId() == 1);
                 startActivity(i);
                 return true;
@@ -158,6 +169,14 @@ public class MainActivity extends AppCompatActivity {
         studyAppList = findViewById(R.id.studyList);
         lockedList.setEmptyView(findViewById(R.id.lockedEmpty));
         studyAppList.setEmptyView(findViewById(R.id.studyEmpty));
+        strictCount = findViewById(R.id.strictCount);
+        strictAppList = findViewById(R.id.strictList);
+        strictAppList.setEmptyView(findViewById(R.id.strictEmpty));
+        // Tapping the card or a row opens the strict lock page, the same as + then Strict lock.
+        View.OnClickListener openStrict = v ->
+                startActivity(new Intent(this, StrictLockActivity.class));
+        findViewById(R.id.strictCard).setOnClickListener(openStrict);
+        strictAppList.setOnItemClickListener((parent, view, position, id) -> openStrict.onClick(view));
     }
 
     /** True if Android is not restricting this app's background running (needed to keep the blocker alive). */
@@ -291,6 +310,23 @@ public class MainActivity extends AppCompatActivity {
         studyAppList.setAdapter(new AppAdapter(this, study, pendingAdds,
                 " · from next reset", studySub, studyBar));
         studyCount.setText(String.valueOf(study.size()));
+
+        // ---- strict apps ----
+        List<String> strict = new ArrayList<>(state.strictApps());
+        Collections.sort(strict);
+        String strictLine;
+        if (state.strictActiveNow()) {
+            strictLine = "Locked until " + timeOfDay(state.strictEndsAt());
+        } else {
+            long next = state.msUntilNextStrictStart();
+            strictLine = next >= 0 ? "Locks at " + timeOfDay(System.currentTimeMillis() + next)
+                    : "No window or timer set";
+        }
+        Map<String, String> strictSub = new HashMap<>();
+        for (String pkg : strict) strictSub.put(pkg, strictLine);
+        strictAppList.setAdapter(new AppAdapter(this, strict, state.pendingStrictAppRemovals(),
+                " · removed at next reset", strictSub, new HashMap<>()));
+        strictCount.setText(String.valueOf(strict.size()));
     }
 
     /** True if Distraint is an active device admin (what blocks uninstalling and clearing its data from App info). */
@@ -380,7 +416,7 @@ public class MainActivity extends AppCompatActivity {
                     if (isBlockerEnabled()) continue;
                     title = "Accessibility";
                     message = "Distraint uses this to notice when a locked game opens. "
-                            + "On the next screen, find Distraint and turn it on.";
+                            + "On the next screen, find Distraint and turn it on." + "Android 13+ might need to allow restricted settings in app info.";
                     intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
                     break;
                 case 1:
@@ -564,6 +600,13 @@ public class MainActivity extends AppCompatActivity {
     private static String clock(long s) {
         return String.format(Locale.US, "%02d:%02d", s / 60, s % 60);
     }
+    /** Clock time for the strict section: "22:00", or "Sat 06:00" when it is not today. */
+    private static String timeOfDay(long epochMs) {
+        ZonedDateTime z = Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault());
+        boolean today = z.toLocalDate().equals(LocalDate.now());
+        return DateTimeFormatter.ofPattern(today ? "HH:mm" : "EEE HH:mm", Locale.getDefault()).format(z);
+    }
+
 
     /**
      * Redraws the ring, clock, status text and Unlock button from StudyState. Cheap enough to call often: the

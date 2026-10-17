@@ -136,6 +136,7 @@ public class StudyState {
      * First run: reset_at is 0, so this runs immediately and creates the first day.
      */
     public void rollover() {
+        applyStrictPending();
         long now = System.currentTimeMillis();
         if (now < p.getLong("reset_at", 0)) return;      // still inside the same study day
 
@@ -170,7 +171,11 @@ public class StudyState {
                 .putBoolean("unlock_used", false)
                 .apply();
 
-        cachedAt = -3000;                                // day changed: drop cached usage
+        cachedAt = -3000;// day changed: drop cached usage
+        if (!pendingStrictAppRemovals().isEmpty() || !pendingStrictWindowRemovals().isEmpty()) {
+            p.edit().putBoolean("strict_due", true).apply();
+        }
+        applyStrictPending();
     }
 
     // ------------------------------------------------------------------
@@ -626,4 +631,135 @@ public class StudyState {
     public long unlockedUntil() { return p.getLong("unlocked_until", 0); }
     // Epoch ms when the current unlock started (0 = not unlocked today). Used to warn only once per unlock.
     public long unlockAt() { return p.getLong("unlock_at", 0); }
+    // ------------------------------------------------------------------
+    // Strict lock: these apps cannot be opened during a daily window or a running timer,
+    // whatever the study progress is. Tightening applies now; loosening is refused while a
+    // lock is active and otherwise waits for a reset that happens outside any active lock.
+    // ------------------------------------------------------------------
+
+    /** Strictly locked apps, including ones queued for removal (they stay locked until the removal is applied). */
+    public Set<String> strictApps() {
+        return new HashSet<>(p.getStringSet("strict_apps", new HashSet<>()));
+    }
+
+    public Set<String> pendingStrictAppRemovals() {
+        return new HashSet<>(p.getStringSet("pending_strict_apps_remove", new HashSet<>()));
+    }
+
+    /** Picker result: new apps lock now. Unticked apps are queued for removal, but only if no lock is active right now. */
+    public void saveStrictApps(Set<String> chosen) {
+        Set<String> live = strictApps();
+        live.addAll(chosen);
+        SharedPreferences.Editor e = p.edit().putStringSet("strict_apps", live);
+        if (!strictActiveNow()) {
+            Set<String> toRemove = new HashSet<>(live);
+            toRemove.removeAll(chosen);
+            e.putStringSet("pending_strict_apps_remove", toRemove);
+        }   // while locked, the old queue is left exactly as it was
+        e.apply();
+    }
+
+    /** Daily windows as "startMin-endMin" strings (minutes after midnight). End earlier than start means it crosses midnight. */
+    public Set<String> strictWindows() {
+        return new HashSet<>(p.getStringSet("strict_windows", new HashSet<>()));
+    }
+
+    public Set<String> pendingStrictWindowRemovals() {
+        return new HashSet<>(p.getStringSet("pending_strict_windows_remove", new HashSet<>()));
+    }
+
+    public void addStrictWindow(int startMin, int endMin) {
+        if (startMin == endMin) return;                       // an empty window means nothing
+        String w = startMin + "-" + endMin;
+        Set<String> wins = strictWindows();
+        wins.add(w);
+        Set<String> queued = pendingStrictWindowRemovals();
+        queued.remove(w);                                     // re-adding cancels a queued removal
+        p.edit().putStringSet("strict_windows", wins)
+                .putStringSet("pending_strict_windows_remove", queued).apply();
+    }
+
+    /** Returns false (and does nothing) while a strict lock is active; otherwise queues the removal. */
+    public boolean requestRemoveStrictWindow(String w) {
+        if (strictActiveNow()) return false;
+        Set<String> queued = pendingStrictWindowRemovals();
+        queued.add(w);
+        p.edit().putStringSet("pending_strict_windows_remove", queued).apply();
+        return true;
+    }
+
+    /** Epoch ms when the strict timer ends (0 = none). */
+    public long strictUntil() { return p.getLong("strict_until", 0); }
+
+    /** Starts (or extends) the timer. It can only get longer: a shorter request never replaces a longer running one. */
+    public void startStrictTimer(long minutes) {
+        long until = System.currentTimeMillis() + minutes * 60_000L;
+        if (until > strictUntil()) p.edit().putLong("strict_until", until).apply();
+    }
+
+    private static boolean inWindow(String w, int nowMin) {
+        String[] a = w.split("-");
+        int s = Integer.parseInt(a[0]), e = Integer.parseInt(a[1]);
+        return s < e ? (nowMin >= s && nowMin < e)            // same-day window
+                : (nowMin >= s || nowMin < e);           // crosses midnight
+    }
+
+    /** True while the timer is running or the clock is inside any window. */
+    public boolean strictActiveNow() {
+        if (System.currentTimeMillis() < strictUntil()) return true;
+        ZonedDateTime t = ZonedDateTime.now();
+        int nowMin = t.getHour() * 60 + t.getMinute();
+        for (String w : strictWindows()) {
+            if (inWindow(w, nowMin)) return true;
+        }
+        return false;
+    }
+
+    /** The question BlockerService will ask (next step): is this app strictly locked right now? */
+    public boolean isStrictLocked(String pkg) {
+        return strictApps().contains(pkg) && strictActiveNow();
+    }
+
+    /** Applies queued strict removals, but only once no lock is active (a reset at 4 AM inside a night window must not open a loophole). */
+    private void applyStrictPending() {
+        if (!p.getBoolean("strict_due", false) || strictActiveNow()) return;
+        Set<String> apps = strictApps();
+        apps.removeAll(pendingStrictAppRemovals());
+        Set<String> wins = strictWindows();
+        wins.removeAll(pendingStrictWindowRemovals());
+        p.edit().putStringSet("strict_apps", apps)
+                .putStringSet("strict_windows", wins)
+                .remove("pending_strict_apps_remove")
+                .remove("pending_strict_windows_remove")
+                .remove("strict_due").apply();
+    }
+
+    /** Milliseconds until the next daily window starts, or -1 if there are no windows. */
+    public long msUntilNextStrictStart() {
+        ZonedDateTime now = ZonedDateTime.now();
+        long best = -1;
+        for (String w : strictWindows()) {
+            int s = Integer.parseInt(w.split("-")[0]);
+            ZonedDateTime t = now.withHour(s / 60).withMinute(s % 60).withSecond(0).withNano(0);
+            if (!t.isAfter(now)) t = t.plusDays(1);              // already passed today: tomorrow
+            long d = t.toInstant().toEpochMilli() - now.toInstant().toEpochMilli();
+            if (best < 0 || d < best) best = d;
+        }
+        return best;
+    }
+
+    /** When the strict lock that is active right now ends (epoch ms); 0 if none is active. Used for the lock screen text. */
+    public long strictEndsAt() {
+        long end = System.currentTimeMillis() < strictUntil() ? strictUntil() : 0;
+        ZonedDateTime now = ZonedDateTime.now();
+        int nowMin = now.getHour() * 60 + now.getMinute();
+        for (String w : strictWindows()) {
+            if (!inWindow(w, nowMin)) continue;
+            int e = Integer.parseInt(w.split("-")[1]);
+            ZonedDateTime t = now.withHour(e / 60).withMinute(e % 60).withSecond(0).withNano(0);
+            if (!t.isAfter(now)) t = t.plusDays(1);              // the end is always the next occurrence of that time
+            end = Math.max(end, t.toInstant().toEpochMilli());
+        }
+        return end;
+    }
 }
