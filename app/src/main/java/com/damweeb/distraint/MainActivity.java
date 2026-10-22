@@ -413,12 +413,12 @@ public class MainActivity extends AppCompatActivity {
             Intent intent;
             switch (step) {
                 case 0:
-                    if (isBlockerEnabled()) continue;
-                    title = "Accessibility";
-                    message = "Distraint uses this to notice when a locked game opens. "
-                            + "On the next screen, find Distraint and turn it on." + "Android 13+ might need to allow restricted settings in app info.";
-                    intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                    if (isAdminActive()) continue;
+                    title = "Uninstall protection";
+                    message = "This makes Distraint harder to remove on an impulse.";
+                    intent = adminIntent();
                     break;
+
                 case 1:
                     if (state.hasUsageAccess()) continue;
                     title = "Usage access";
@@ -435,10 +435,11 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 // step 3
                 default:
-                    if (isAdminActive()) continue;
-                    title = "Uninstall protection";
-                    message = "This makes Distraint harder to remove on an impulse.";
-                    intent = adminIntent();
+                    if (isBlockerEnabled()) continue;
+                    title = "Accessibility";
+                    message = "Distraint uses this to notice when a locked game opens. "
+                            + "On the next screen, find Distraint and turn it on." + "Android 13+ might need to allow restricted settings in app info.";
+                    intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
                     break;
             }
             askFor(title, message, intent);
@@ -456,10 +457,6 @@ public class MainActivity extends AppCompatActivity {
                 .setPositiveButton("Continue", (d, w) -> {
                     asking = false;
                     requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 100);
-                })
-                .setNegativeButton("Skip", (d, w) -> {
-                    asking = false;
-                    runOnboarding();
                 })
                 .show();
     }
@@ -530,10 +527,6 @@ public class MainActivity extends AppCompatActivity {
                 .setPositiveButton("Continue", (d, w) -> {
                     asking = false;
                     startActivity(intent);
-                })
-                .setNegativeButton("Skip", (d, w) -> {
-                    asking = false;
-                    runOnboarding();
                 })
                 .show();
     }

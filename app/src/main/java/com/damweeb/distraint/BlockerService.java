@@ -578,10 +578,11 @@ public class BlockerService extends AccessibilityService {
 
         String us = getApplicationInfo().loadLabel(getPackageManager()).toString().toLowerCase(Locale.ROOT);
         if (!text.contains(us)) return;                    // not about Distraint
-        boolean removes = text.contains("uninstall") || text.contains("force stop")
-                || text.contains("deactivate") || text.contains("clear storage")
-                || text.contains("clear data")
-                || text.contains("use " + us) || text.contains("stop " + us);   // accessibility switch / stop dialog
+        // Settings: look for an actual removal control. Installer dialogs: the whole dialog is about one app,
+        // and on some Android versions its buttons are just "OK", so the word "uninstall" anywhere is enough.
+        boolean removes = pkg.equals("com.android.settings")
+                ? hasRemovalControl(root, us, new int[]{0})
+                : text.contains("uninstall");
         if (!removes) return;
 
         showMessage(null, "Distraint is protected", "Protected",
@@ -597,6 +598,32 @@ public class BlockerService extends AccessibilityService {
         CharSequence d = node.getContentDescription();
         if (d != null) out.append(d).append('\n');
         for (int i = 0; i < node.getChildCount(); i++) collectText(node.getChild(i), out, count);
+    }
+    // Labels that START the views that remove or stop an app. Only short texts count (see isRemovalText).
+    private static final String[] REMOVAL_STARTS = {
+            "uninstall", "force stop", "deactivate", "clear storage", "clear data"
+    };
+
+    /** True if some view on this screen is a control that removes or stops us. Capped at 400 views. */
+    private boolean hasRemovalControl(AccessibilityNodeInfo node, String us, int[] count) {
+        if (node == null || count[0]++ > 400) return false;
+        if (isRemovalText(node.getText(), us) || isRemovalText(node.getContentDescription(), us)) return true;
+        for (int i = 0; i < node.getChildCount(); i++) {
+            if (hasRemovalControl(node.getChild(i), us, count)) return true;
+        }
+        return false;
+    }
+
+    /** A short text that begins with a removal action. Long sentences are explanations, not controls, so they never count. */
+    private static boolean isRemovalText(CharSequence cs, String us) {
+        if (cs == null) return false;
+        String t = cs.toString().trim().toLowerCase(Locale.ROOT);
+        if (t.isEmpty() || t.length() > 45) return false;
+        if (t.startsWith("use " + us) || t.startsWith("stop " + us)) return true;   // accessibility switch / stop dialog
+        for (String s : REMOVAL_STARTS) {
+            if (t.startsWith(s)) return true;
+        }
+        return false;
     }
 
 
