@@ -1,13 +1,33 @@
 package com.damweeb.distraint;
 
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
+import android.content.Intent;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.ActionMode;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButtonToggleGroup;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.textfield.TextInputLayout;
+
+import java.security.SecureRandom;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 
 /**
  * Settings screen. Values are shown from StudyState.shown() (the queued value if one exists, otherwise the live one).
@@ -26,6 +46,14 @@ public class SettingsActivity extends AppCompatActivity {
     private EditText requiredEdit, unlockEdit, resetEdit;
     // Segmented controls: how study apps count, and how unlock time is counted. (The theme control is a local in onCreate.)
     private MaterialButtonToggleGroup combineGroup, limitGroup;
+    private TextView protectStatus;
+    private Button protectButton;
+
+    // What the code is made of. Look-alikes (I, l, 1, O, o, 0) are left out so it can be read off the screen reliably.
+    private static final String UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private static final String LOWER = "abcdefghijkmnpqrstuvwxyz";
+    private static final String DIGITS = "23456789";
+    private static final String SYMBOLS = "!@#$%&*?+=-";
 
     @Override
     protected void onCreate(Bundle b) {
@@ -45,6 +73,9 @@ public class SettingsActivity extends AppCompatActivity {
         resetEdit.setText(String.valueOf(state.shown("rollover_hour")));
         limitGroup = findViewById(R.id.limitGroup);
         combineGroup = findViewById(R.id.combineGroup);
+        protectStatus = findViewById(R.id.protectStatus);
+        protectButton = findViewById(R.id.protectButton);
+        protectButton.setOnClickListener(v -> onProtectClicked());
         combineGroup.check(state.shown("combine") == StudyState.COMBINE_INDIVIDUAL
                 ? R.id.combineEach : R.id.combineTotal);
         limitGroup.check(state.shown("limit_style") == StudyState.LIMIT_PER_APP
@@ -110,6 +141,125 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        refreshProtection();
+    }
+    private boolean adminActive() {
+        DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+        return dpm.isAdminActive(new ComponentName(this, AdminReceiver.class));
+    }
 
+    /** Redraws the card from the saved switch and the real admin state. */
+    private void refreshProtection() {
+        if (!state.protectEnabled()) {
+            protectStatus.setText("Protection is off. Distraint can be uninstalled or force-stopped.");
+            protectButton.setText("Turn on protection");
+        } else if (adminActive()) {
+            protectStatus.setText("Protection is on. Distraint can't be uninstalled or force-stopped.");
+            protectButton.setText("Turn off protection…");
+        } else {
+            protectStatus.setText("Device admin isn't active, so Distraint isn't protected yet.");
+            protectButton.setText("Turn on protection");
+        }
+    }
+
+    private void onProtectClicked() {
+        if (state.protectEnabled() && adminActive()) {
+            if (state.strictActiveNow()) {          // "no matter what": no way out in the middle of a strict lock
+                Toast.makeText(this, "Can't turn off protection during a strict lock", Toast.LENGTH_LONG).show();
+                return;
+            }
+            showDisableDialog();
+        } else {
+            // Standard Android screen for activating a device admin; AdminReceiver.onEnabled() switches protection on.
+            Intent i = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+            i.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, new ComponentName(this, AdminReceiver.class));
+            i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                    "While active, Distraint can't be uninstalled or force-stopped.");
+            startActivity(i);
+        }
+    }
+
+    /** 16 random characters from a cryptographically secure generator, with at least one of each kind. A new code every time the dialog opens. */
+    private static String newCode() {
+        SecureRandom r = new SecureRandom();
+        String all = UPPER + LOWER + DIGITS + SYMBOLS;
+        List<Character> chars = new ArrayList<>();
+        chars.add(UPPER.charAt(r.nextInt(UPPER.length())));      // one of each kind first...
+        chars.add(LOWER.charAt(r.nextInt(LOWER.length())));
+        chars.add(DIGITS.charAt(r.nextInt(DIGITS.length())));
+        chars.add(SYMBOLS.charAt(r.nextInt(SYMBOLS.length())));
+        while (chars.size() < 16) chars.add(all.charAt(r.nextInt(all.length())));
+        Collections.shuffle(chars, r);                           // ...then shuffle so they don't sit at the front
+        StringBuilder sb = new StringBuilder();
+        for (char c : chars) sb.append(c);
+        return sb.toString();
+    }
+
+    private void showDisableDialog() {
+        final String code = newCode();
+        View v = getLayoutInflater().inflate(R.layout.dialog_protect, null);
+        TextView shown = v.findViewById(R.id.codeText);
+        TextInputLayout layout = v.findViewById(R.id.codeLayout);
+        android.widget.EditText input = v.findViewById(R.id.codeInput);
+        // Shown in groups of four to be easier to copy by eye; the box takes the 16 digits with no spaces.
+        shown.setText(code.substring(0, 4) + "  " + code.substring(4, 8) + "  "
+                + code.substring(8, 12) + "  " + code.substring(12, 16));
+        blockPaste(input);
+
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+                .setTitle("Turn off protection?")
+                .setView(v)
+                .setPositiveButton("Turn off", null)      // real handler below, so a wrong code doesn't close the dialog
+                .setNegativeButton("Cancel", null)
+                .create();
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(b -> {
+            if (input.getText().toString().equals(code)) {
+                disableProtection();
+                dialog.dismiss();
+            } else {
+                layout.setError("That doesn't match");
+            }
+        }));
+        dialog.show();
+    }
+
+    /** Removes our own device admin (so Uninstall works) and records that protection is off. */
+    private void disableProtection() {
+        DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+        ComponentName admin = new ComponentName(this, AdminReceiver.class);
+        if (dpm.isAdminActive(admin)) dpm.removeActiveAdmin(admin);
+        state.setProtectEnabled(false);
+        refreshProtection();
+    }
+
+    /** Best-effort paste blocking: no paste menu, no drag-and-drop, and any change that adds more than one character at once is undone. */
+    private void blockPaste(android.widget.EditText input) {
+        ActionMode.Callback none = new ActionMode.Callback() {
+            @Override public boolean onCreateActionMode(ActionMode m, Menu menu) { return false; }
+            @Override public boolean onPrepareActionMode(ActionMode m, Menu menu) { return false; }
+            @Override public boolean onActionItemClicked(ActionMode m, MenuItem item) { return false; }
+            @Override public void onDestroyActionMode(ActionMode m) { }
+        };
+        input.setCustomSelectionActionModeCallback(none);
+        input.setCustomInsertionActionModeCallback(none);
+        input.setLongClickable(false);
+        input.setOnDragListener((view, e) -> true);
+        input.addTextChangedListener(new TextWatcher() {
+            private String before = "";
+            private boolean undoing;
+            @Override public void beforeTextChanged(CharSequence s, int st, int c, int a) {
+                if (!undoing) before = s.toString();
+            }
+            @Override public void onTextChanged(CharSequence s, int st, int b, int c) { }
+            @Override public void afterTextChanged(Editable s) {
+                if (undoing) return;
+                if (s.length() > before.length() + 1) {   // several characters appeared at once: that's a paste
+                    undoing = true;
+                    s.replace(0, s.length(), before);
+                    input.setSelection(s.length());
+                    undoing = false;
+                }
+            }
+        });
     }
 }

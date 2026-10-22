@@ -103,6 +103,11 @@ public class StudyState {
     // Epoch ms of the next daily reset; 0 until rollover() has run for the first time.
     public long resetAt() { return p.getLong("reset_at", 0); }
 
+    /** Uninstall protection switch. On by default; turned off only from Settings after the typed code, and back on when device admin is activated again. */
+    public boolean protectEnabled() { return p.getBoolean("protect_on", true); }
+
+    public void setProtectEnabled(boolean on) { p.edit().putBoolean("protect_on", on).apply(); }
+
     /**
      * First moment strictly after `from` when the clock reads hour:00 (local time).
      * ZonedDateTime is used so daylight-saving changes are handled correctly.

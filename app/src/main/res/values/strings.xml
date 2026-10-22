@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Distraint</string>
-    <string name="service_desc">Detects when a locked game opens so Distraint can send you back to study.</string>
+    <string name="service_desc">Detects when a locked game opens so Distraint can send you back to study. This also enables Distraint to read the screen to stop user from bypassing the app.</string>
 </resources>

@@ -56,8 +56,8 @@ No willpower required: if you want to scroll, you have to earn it first.
 Requirements: [Android Studio](https://developer.android.com/studio) and JDK 17 or newer.
 
 ```bash
-git clone https://github.com/ViCiAsh/Distraint-.git
-cd Distraint-
+git clone https://github.com/ViCiAsh/Distraint.git
+cd Distraint
 ```
 
 Open the folder in Android Studio, let Gradle sync, and press **Run**. Or build a debug APK from the terminal:
@@ -78,7 +78,7 @@ Distraint needs a few permissions to work. Nothing is requested without an expla
 
 | Permission | Why it's needed |
 | --- | --- |
-| Accessibility | Blocks the apps and gets access to them |
+| Accessibility | Blocks the apps and gets access to them. Also enables Distraint to read the screen to stop bypassing the app |
 | Notifications (Android 13+) | Shows the countdown when your unlock time is about to run out |
 | Device admin | Helps keep the lock in place so it can't be bypassed easily |
 | Usage access | Gets access of the app usage to keep track of it |

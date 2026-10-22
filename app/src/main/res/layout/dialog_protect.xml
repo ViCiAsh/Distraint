@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="24dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="This lets Distraint be uninstalled. To continue, type the 16 characters below by hand, exactly as shown. Capital letters and symbols count, and there are no spaces."/>
+
+    <TextView
+        android:id="@+id/codeText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:fontFamily="monospace"
+        android:gravity="center"
+        android:textIsSelectable="false"
+        android:textSize="22sp"
+        android:textStyle="bold" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/codeLayout"
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:hint="Type the 16 Characters">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/codeInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:importantForAutofill="no"
+            android:imeOptions="flagNoPersonalizedLearning"
+            android:inputType="textVisiblePassword|textNoSuggestions"
+            android:maxLength="16" />
+    </com.google.android.material.textfield.TextInputLayout>
+</LinearLayout>

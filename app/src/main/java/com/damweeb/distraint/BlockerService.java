@@ -1,5 +1,6 @@
 package com.damweeb.distraint;
 
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.accessibilityservice.AccessibilityService;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -11,6 +12,7 @@ import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -89,6 +91,15 @@ public class BlockerService extends AccessibilityService {
     private final Runnable warn = this::checkWarn;          // fires WARN_MS before the end
     private final Runnable hideWarn = this::removeWarnBanner;
 
+    // Uninstall protection: the system screens that can remove or stop an app. Nothing else is ever read.
+    private static final String[] EXIT_SCREEN_PACKAGES = {
+            "com.android.settings",
+            "com.google.android.packageinstaller",
+            "com.android.packageinstaller",
+            "com.samsung.android.packageinstaller"
+    };
+    private long lastGuardMs;                              // throttles the guard: content events arrive in bursts
+
     /** Called by Android when the user switches the service on (or the phone restarts it). */
     @Override
     protected void onServiceConnected() {
@@ -106,6 +117,8 @@ public class BlockerService extends AccessibilityService {
      */
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        CharSequence guardPkg = event.getPackageName();
+        if (guardPkg != null) guardExitScreens(guardPkg.toString());   // uninstall protection, for window AND content events
         if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         CharSequence p = event.getPackageName();
         if (p == null) return;
@@ -538,6 +551,52 @@ public class BlockerService extends AccessibilityService {
         b.animate().alpha(0f).setDuration(200).withEndAction(() -> {
             try { wm.removeView(b); } catch (Exception ignored) { }
         }).start();
+    }
+
+    /**
+     * Uninstall protection. On a Settings or installer screen whose text is about Distraint AND offers to remove or
+     * stop it (uninstall, force stop, deactivate, clear storage, or the accessibility switch/stop dialog), cover the
+     * screen and send the user home. Does nothing when protection is off (see Settings > Uninstall protection).
+     * Matches English wording only.
+     */
+    private void guardExitScreens(String pkg) {
+        boolean listed = false;
+        for (String g : EXIT_SCREEN_PACKAGES) {
+            if (g.equals(pkg)) { listed = true; break; }
+        }
+        if (!listed || overlay != null) return;
+        long now = SystemClock.uptimeMillis();
+        if (now - lastGuardMs < 300) return;               // events come in bursts; look at most every 300 ms
+        lastGuardMs = now;
+        if (!new StudyState(this).protectEnabled()) return;
+
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null || !pkg.contentEquals(root.getPackageName())) return;
+        StringBuilder sb = new StringBuilder();
+        collectText(root, sb, new int[]{0});
+        String text = sb.toString().toLowerCase(Locale.ROOT);
+
+        String us = getApplicationInfo().loadLabel(getPackageManager()).toString().toLowerCase(Locale.ROOT);
+        if (!text.contains(us)) return;                    // not about Distraint
+        boolean removes = text.contains("uninstall") || text.contains("force stop")
+                || text.contains("deactivate") || text.contains("clear storage")
+                || text.contains("clear data")
+                || text.contains("use " + us) || text.contains("stop " + us);   // accessibility switch / stop dialog
+        if (!removes) return;
+
+        showMessage(null, "Distraint is protected", "Protected",
+                "This screen can remove or stop Distraint. To change that, turn off protection in Distraint's settings.",
+                -1, null);
+    }
+
+    /** Appends the text of a screen's views to `out`. Capped at 400 views so a huge screen can't make this slow. */
+    private void collectText(AccessibilityNodeInfo node, StringBuilder out, int[] count) {
+        if (node == null || count[0]++ > 400) return;
+        CharSequence t = node.getText();
+        if (t != null) out.append(t).append('\n');
+        CharSequence d = node.getContentDescription();
+        if (d != null) out.append(d).append('\n');
+        for (int i = 0; i < node.getChildCount(); i++) collectText(node.getChild(i), out, count);
     }
 
 

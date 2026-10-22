@@ -16,4 +16,9 @@ public class AdminReceiver extends DeviceAdminReceiver {
     public CharSequence onDisableRequested(Context context, Intent intent) {
         return "This lets Distraint be uninstalled. Are you sure you want to give up on studying?";
     }
+    // Runs when the admin is (re)activated. Protection comes back on with it.
+    @Override
+    public void onEnabled(Context context, Intent intent) {
+        new StudyState(context).setProtectEnabled(true);
+    }
 }
