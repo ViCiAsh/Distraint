@@ -18,6 +18,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+import java.util.Iterator;
+import java.util.UUID;
+
 /**
  * StudyState: the single source of truth for everything Distraint remembers.
  *
@@ -512,7 +517,7 @@ public class StudyState {
      *   - Individual mode: in-app timer (never capped) + each study app capped at the required minutes.
      * The name is historical (it started as a plain total). Used by the home ring, the lock screen and requirementMet().
      */
-    public long totalStudiedSec() {
+    public long localStudiedSec() {
         if (individualActive()) {
             long cap = requiredMin() * 60L;
             Map<String, Long> byApp = appSecByPackage();
@@ -524,10 +529,106 @@ public class StudyState {
         }
         return studiedSec() + appStudySec();
     }
+    /** This device's progress plus the study seconds reported today by the paired PC (uncapped, like the in-app timer). */
+    public long totalStudiedSec() { return localStudiedSec() + peerSecTotal(); }
 
     // True once progress has reached the goal.
     public boolean requirementMet() { return totalStudiedSec() >= goalSec(); }
 
+    // ------------------------------------------------------------------
+// Sync with the PC (see SyncClient / SyncProtocol)
+// ------------------------------------------------------------------
+    private static final Object SYNC_LOCK = new Object();
+
+    public String deviceId() {
+        String id = p.getString("device_id", null);
+        if (id == null) {
+            id = UUID.randomUUID().toString().replace("-", "");
+            p.edit().putString("device_id", id).apply();
+        }
+        return id;
+    }
+    public String deviceName() { return android.os.Build.MODEL; }
+    public String syncSecret() { return p.getString("sync_secret", null); }
+    public String syncHost() { return p.getString("sync_host", ""); }
+    public int syncPort() { return p.getInt("sync_port", 47653); }
+
+    public void setPairing(String host, int port, String secretB64) {
+        p.edit().putString("sync_host", host).putInt("sync_port", port).putString("sync_secret", secretB64).apply();
+    }
+
+    /** Key of the current study day, e.g. "2026-10-25". Devices only add each other's time when the keys match. */
+    public String currentDayKey() {
+        long ms = p.getLong("day_start", 0);
+        if (ms == 0) ms = System.currentTimeMillis();
+        return SyncProtocol.dayKey(ms);
+    }
+
+    private JSONObject peers() {
+        try { return new JSONObject(p.getString("sync_peers", "{}")); }
+        catch (JSONException e) { return new JSONObject(); }
+    }
+
+    public void mergePeerName(String id, String name) {
+        synchronized (SYNC_LOCK) {
+            try {
+                JSONObject all = peers();
+                JSONObject o = all.optJSONObject(id);
+                if (o == null) o = new JSONObject().put("day", "").put("sec", 0).put("reset", rolloverHour());
+                o.put("name", name).put("last", System.currentTimeMillis());
+                all.put(id, o);
+                p.edit().putString("sync_peers", all.toString()).apply();
+            } catch (JSONException ignored) { }
+        }
+    }
+
+    /** Each device owns its own number: we replace it, never add to it. Within one day it only grows, so repeats can't double count. */
+    public void mergePeer(String id, String name, String day, long sec, int reset) {
+        synchronized (SYNC_LOCK) {
+            try {
+                JSONObject all = peers();
+                JSONObject o = all.optJSONObject(id);
+                if (o == null) o = new JSONObject();
+                long keep = day.equals(o.optString("day", "")) ? Math.max(o.optLong("sec", 0), sec) : sec;
+                o.put("name", name).put("day", day).put("sec", keep).put("reset", reset).put("last", System.currentTimeMillis());
+                all.put(id, o);
+                p.edit().putString("sync_peers", all.toString()).apply();
+            } catch (JSONException ignored) { }
+        }
+    }
+
+    public long peerSecTotal() {
+        String day = currentDayKey();
+        JSONObject all = peers();
+        long sum = 0;
+        for (Iterator<String> it = all.keys(); it.hasNext(); ) {
+            JSONObject o = all.optJSONObject(it.next());
+            if (o != null && day.equals(o.optString("day", ""))) sum += o.optLong("sec", 0);
+        }
+        return sum;
+    }
+
+    public String peersSummary() {
+        String day = currentDayKey();
+        JSONObject all = peers();
+        StringBuilder sb = new StringBuilder();
+        for (Iterator<String> it = all.keys(); it.hasNext(); ) {
+            JSONObject o = all.optJSONObject(it.next());
+            if (o == null) continue;
+            long sec = day.equals(o.optString("day", "")) ? o.optLong("sec", 0) : -1;
+            java.time.ZonedDateTime t = java.time.Instant.ofEpochMilli(o.optLong("last", 0)).atZone(ZoneId.systemDefault());
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(o.optString("name", "PC")).append(" - ")
+                    .append(sec < 0 ? "nothing studied today" : (sec / 60) + " min " + (sec % 60) + " s studied today")
+                    .append(" - last sync ").append(String.format(java.util.Locale.US, "%02d:%02d", t.getHour(), t.getMinute()));
+            if (o.optInt("reset", rolloverHour()) != rolloverHour()) sb.append("  (different reset hour!)");
+        }
+        return sb.length() == 0 ? "Paired." : sb.toString();
+    }
+
+    public void forgetSync() {
+        p.edit().remove("sync_secret").remove("sync_host").remove("sync_peers").apply();
+    }
 
 
     // ------------------------------------------------------------------

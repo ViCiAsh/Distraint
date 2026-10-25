@@ -12,6 +12,11 @@
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK"/>
     <application
         android:name=".App"
         android:icon="@mipmap/ic_launcher"
@@ -33,6 +38,7 @@
         <activity android:name=".GamePickerActivity" />
         <activity android:name=".SettingsActivity" />
         <activity android:name=".StrictLockActivity" />
+        <activity android:name=".SyncActivity" android:exported="false" android:label="Sync with PC"/>
 
         <service
             android:name=".BlockerService"

@@ -76,6 +76,8 @@ public class SettingsActivity extends AppCompatActivity {
         protectStatus = findViewById(R.id.protectStatus);
         protectButton = findViewById(R.id.protectButton);
         protectButton.setOnClickListener(v -> onProtectClicked());
+        findViewById(R.id.syncButton).setOnClickListener(v ->
+                startActivity(new Intent(this, SyncActivity.class)));
         combineGroup.check(state.shown("combine") == StudyState.COMBINE_INDIVIDUAL
                 ? R.id.combineEach : R.id.combineTotal);
         limitGroup.check(state.shown("limit_style") == StudyState.LIMIT_PER_APP
@@ -142,6 +144,10 @@ public class SettingsActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         refreshProtection();
+        TextView syncStatus = findViewById(R.id.syncStatus);
+        syncStatus.setText(state.syncSecret() == null
+                ? "Not paired. Study time isn't shared with your PC."
+                : state.peersSummary());
     }
     private boolean adminActive() {
         DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);

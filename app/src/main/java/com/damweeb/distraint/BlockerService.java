@@ -106,6 +106,8 @@ public class BlockerService extends AccessibilityService {
         super.onServiceConnected();
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
         running = true;
+        handler.removeCallbacks(syncTick);
+        handler.postDelayed(syncTick, 5_000);
     }
 
     /**
@@ -436,6 +438,7 @@ public class BlockerService extends AccessibilityService {
         removeGrace();
         handler.removeCallbacks(warn);
         removeWarnBanner();
+        handler.removeCallbacks(syncTick);
     }
     // Called when the service is switched off in Android's settings.
     @Override
@@ -462,6 +465,12 @@ public class BlockerService extends AccessibilityService {
     // and the timer that re-checks it when the next daily window begins.
     private String currentStrictPkg;
     private final Runnable strictCheck = this::checkStrict;
+    private final Runnable syncTick = new Runnable() {
+        @Override public void run() {
+            SyncClient.syncAsync(BlockerService.this, null);
+            handler.postDelayed(this, 60_000);
+        }
+    };
 
     /** Re-checks the app's remaining time (timers can fire early after the phone sleeps); starts the grace period only if time is truly up. */
     private void checkExpiry() {

@@ -100,6 +100,19 @@ public class MainActivity extends AppCompatActivity {
             if (studying) handler.postDelayed(this, 200);
         }
     };
+    private final Runnable syncLoop = new Runnable() {
+        @Override public void run() {
+            SyncClient.syncAsync(MainActivity.this, (ok, msg) -> { if (ok) refresh(); });
+            handler.postDelayed(this, 30_000);
+        }
+    };
+
+    private final Runnable warnLoop = new Runnable() {
+        @Override public void run() {
+            updateBlockerWarning();
+            handler.postDelayed(this, 2000);
+        }
+    };
 
     /**
      * Finds the views and wires up every click listener. A NullPointerException in here almost always
@@ -172,11 +185,8 @@ public class MainActivity extends AppCompatActivity {
         strictCount = findViewById(R.id.strictCount);
         strictAppList = findViewById(R.id.strictList);
         strictAppList.setEmptyView(findViewById(R.id.strictEmpty));
-        // Tapping the card or a row opens the strict lock page, the same as + then Strict lock.
-        View.OnClickListener openStrict = v ->
-                startActivity(new Intent(this, StrictLockActivity.class));
-        findViewById(R.id.strictCard).setOnClickListener(openStrict);
-        strictAppList.setOnItemClickListener((parent, view, position, id) -> openStrict.onClick(view));
+        // The strict card is display-only; the strict lock page opens from + then Strict lock.
+        strictAppList.setSelector(android.R.color.transparent);   // no press highlight on the rows
     }
 
     /** True if Android is not restricting this app's background running (needed to keep the blocker alive). */
@@ -216,9 +226,12 @@ public class MainActivity extends AppCompatActivity {
         updateBlockerWarning();
         // Check again after 2 s: right after launch the accessibility service may still be reconnecting,
         // which would flash a false "blocker isn't running" banner.
-        handler.postDelayed(this::updateBlockerWarning, 2000);
+        handler.removeCallbacks(warnLoop);
+        handler.post(warnLoop);
         // Make the next refresh() animate the ring once.
         animateRing = true;
+        handler.removeCallbacks(syncLoop);
+        handler.post(syncLoop);
         refresh();
     }
 
@@ -226,6 +239,7 @@ public class MainActivity extends AppCompatActivity {
     @Override protected void onPause() {
         super.onPause();
         stopStudying();
+        handler.removeCallbacks(syncLoop);
     }
 
     /** Starts the in-app timer: keeps the screen on while studying and begins the tick loop. */
@@ -630,6 +644,8 @@ public class MainActivity extends AppCompatActivity {
                         "Study %d min today to unlock games.", state.requiredMin());
             }
         }
+        long peer = state.peerSecTotal();
+        if (peer > 0) status += "  (+" + clock(peer) + " from the PC)";
         statusText.setText(status);
         unlockButton.setEnabled(state.canUnlock());
         unlockButton.setText(state.isUnlocked() ? "Unlocked" : "Unlock");
@@ -648,7 +664,7 @@ public class MainActivity extends AppCompatActivity {
         TextView banner = findViewById(R.id.warningBanner);
 
         // Nothing to protect yet, so no need to alarm anyone during first setup.
-        if (state.blocked().isEmpty()) {
+        if (state.blocked().isEmpty() && state.strictApps().isEmpty()) {
             banner.setVisibility(View.GONE);
             return;
         }
