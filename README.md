@@ -31,6 +31,7 @@ No willpower required: if you want to scroll, you have to earn it first.
 - Countdown notification before your unlock time runs out
 - Guided onboarding that explains each permission before asking for it
 - Strict Lock mode that locks the apps for certain periods of time.
+- Sync with Desktop to seamlessly share study time.
 
 
 
@@ -82,6 +83,7 @@ Distraint needs a few permissions to work. Nothing is requested without an expla
 | Notifications (Android 13+) | Shows the countdown when your unlock time is about to run out |
 | Device admin | Helps keep the lock in place so it can't be bypassed easily |
 | Usage access | Gets access of the app usage to keep track of it |
+| Internet Access | To sync with Desktop |
 
 Android 13+ devices might need to allow restricted settings first in order to be able to give the above mentioned permissions. You can find it by simply going to the app info of Distraint and tapping the 3 dot on the right corner. 
 ## Privacy
